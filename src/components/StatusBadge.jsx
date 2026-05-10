@@ -44,6 +44,7 @@ export default function StatusBadge({ status }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
+        margin: "5px",
         padding: "3px 10px",
         borderRadius: 999,
         fontSize: 11,
