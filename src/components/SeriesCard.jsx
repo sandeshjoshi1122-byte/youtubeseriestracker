@@ -6,20 +6,15 @@ import {
 } from "../utils/analyzePerformance";
 import { VIEW_THRESHOLD } from "../constants";
 
-// ── Status-aware colour ───────────────────────────────────────────────────────
-const PROGRESS_COLOR = {
+const BAR_COLOR = {
+  upload_next: "#16a34a",
   active: "#16a34a",
   watching: "#f59e0b",
-  revived: "#3b82f6",
+  revived: "#8b5cf6",
   discontinued: "#ef4444",
-  no_video: "#d1d5db",
+  no_video: "#e5e7eb",
 };
 
-// ── Revival message shown on the card ────────────────────────────────────────
-const REVIVAL_NOTE =
-  "Missed the 7-day goal but views recovered later — consider making more episodes.";
-
-// ── Main component ────────────────────────────────────────────────────────────
 export default function SeriesCard({
   item,
   onEdit,
@@ -28,7 +23,9 @@ export default function SeriesCard({
   onDecrement,
   onIncrementUploaded,
   onDecrementUploaded,
-  onUpdateTodo,
+  onIncrementRecorded,
+  onDecrementRecorded,
+  // onUpdateTodo,
 }) {
   const {
     status,
@@ -40,177 +37,169 @@ export default function SeriesCard({
     viewsAt7Days,
     likeCount,
     commentCount,
+    color,
+    todo,
   } = item;
 
   const views = currentViews ?? 0;
   const progress = progressPercent(views);
-  const barColor = PROGRESS_COLOR[status] ?? PROGRESS_COLOR.no_video;
+  const barColor = BAR_COLOR[status] ?? BAR_COLOR.no_video;
   const inWindow = status === "watching";
+  const isUploadNext = status === "upload_next";
   const days = uploadDate ? daysSince(uploadDate) : null;
   const remaining = uploadDate ? daysRemaining(uploadDate) : null;
+  const backlog = Math.max(
+    0,
+    (item.recordedPart ?? 1) - (item.uploadedPart ?? 1),
+  );
+  const accentColor = color || "#e5e7eb";
 
   return (
     <div style={s.card}>
-      {/* ── Thumbnail ──────────────────────────────────────────────────── */}
-      {thumbnail ? (
-        <a
-          href={`https://youtube.com/watch?v=${latestVideoId}`}
-          target="_blank"
-          rel="noreferrer"
-          style={s.thumbLink}
-        >
-          <img src={thumbnail} alt={videoTitle ?? item.name} style={s.thumb} />
-          {inWindow && remaining != null && (
-            <div style={s.daysPill}>
-              {remaining === 0 ? "Last day!" : `${remaining}d left`}
-            </div>
-          )}
-          {status === "discontinued" && (
-            <div style={{ ...s.daysPill, background: "rgba(185,28,28,0.85)" }}>
-              Discontinued
-            </div>
-          )}
-        </a>
-      ) : (
-        /* placeholder when no thumbnail yet */
-        latestVideoId && (
-          <div style={s.thumbPlaceholder}>
-            <span style={{ fontSize: 28, opacity: 0.25 }}>▶</span>
-          </div>
-        )
-      )}
+      {/* Colored left border */}
+      <div style={{ ...s.accent, background: accentColor }} />
 
-      {/* ── Card header ────────────────────────────────────────────────── */}
-      <div style={s.cardTop}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={s.name}>{item.name}</p>
-          {videoTitle && (
-            <p style={s.videoTitle}>
-              {videoTitle.length > 44
-                ? videoTitle.slice(0, 44) + "…"
-                : videoTitle}
-            </p>
-          )}
-        </div>
-        <div style={s.actions}>
-          <button style={s.iconBtn} title="Edit" onClick={() => onEdit(item)}>
-            ✏️
-          </button>
-          <button
-            style={s.iconBtn}
-            title="Delete"
-            onClick={() => onDelete(item.id)}
+      <div style={s.inner}>
+        {/* ── Row 1: thumbnail strip (if available) ───────────────── */}
+        {thumbnail && (
+          <a
+            href={`https://youtube.com/watch?v=${latestVideoId}`}
+            target="_blank"
+            rel="noreferrer"
+            style={s.thumbLink}
           >
-            🗑️
-          </button>
-        </div>
-      </div>
-
-      {/* ── Status badge ───────────────────────────────────────────────── */}
-      <div style={s.badgeRow}>
-        <StatusBadge status={status} />
-      </div>
-
-      {/* ── YouTube stats (only when a video is linked) ─────────────────── */}
-      {latestVideoId && (
-        <div style={s.statsSection}>
-          {/* Views + progress bar */}
-          <div style={s.viewsRow}>
-            <span style={s.viewsLabel}>Views</span>
-            <span style={s.viewsNum}>
-              {views.toLocaleString()}
-              <span style={s.viewsGoal}> / {VIEW_THRESHOLD}</span>
-            </span>
-          </div>
-
-          <div style={s.barTrack}>
-            <div
-              style={{
-                ...s.barFill,
-                width: `${progress}%`,
-                background: barColor,
-              }}
+            <img
+              src={thumbnail}
+              alt={videoTitle ?? item.name}
+              style={s.thumb}
             />
-          </div>
+            {inWindow && remaining != null && (
+              <div style={s.pill}>
+                {remaining === 0 ? "Last day!" : `${remaining}d left`}
+              </div>
+            )}
+          </a>
+        )}
 
-          {/* Likes + comments */}
-          {(likeCount > 0 || commentCount > 0) && (
-            <div style={s.engRow}>
-              {likeCount > 0 && (
-                <span style={s.eng}>👍 {likeCount.toLocaleString()}</span>
+        {/* ── Row 2: name + actions ──────────────────────────────── */}
+        <div style={s.topRow}>
+          <div style={s.nameWrap}>
+            <span style={{ ...s.colorDot, background: accentColor }} />
+            <p style={s.name}>{item.name}</p>
+          </div>
+          <div style={s.actions}>
+            <button style={s.iconBtn} title="Edit" onClick={() => onEdit(item)}>
+              ✏️
+            </button>
+            <button
+              style={s.iconBtn}
+              title="Delete"
+              onClick={() => onDelete(item.id)}
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
+
+        {/* ── Row 3: status badge ────────────────────────────────── */}
+        <StatusBadge status={status} />
+
+        {/* ── Upload next banner ─────────────────────────────────── */}
+        {isUploadNext && (
+          <div style={s.banner}>
+            🚀 Ready — upload part {(item.uploadedPart ?? 1) + 1}!
+          </div>
+        )}
+
+        {/* ── Row 4: views + progress ───────────────────────────── */}
+        {latestVideoId && (
+          <div style={s.viewsBlock}>
+            <div style={s.viewsRow}>
+              <span style={s.viewsNum}>{views.toLocaleString()}</span>
+              <span style={s.viewsSlash}>/</span>
+              <span style={s.viewsGoal}>{VIEW_THRESHOLD}</span>
+              <span style={{ ...s.pct, color: barColor }}>{progress}%</span>
+            </div>
+            <div style={s.barTrack}>
+              <div
+                style={{
+                  ...s.barFill,
+                  width: `${progress}%`,
+                  background: barColor,
+                }}
+              />
+            </div>
+            {/* Engagement + notes */}
+            <div style={s.metaRow}>
+              {(likeCount > 0 || commentCount > 0) && (
+                <>
+                  {likeCount > 0 && (
+                    <span style={s.meta}>👍 {likeCount.toLocaleString()}</span>
+                  )}
+                  {commentCount > 0 && (
+                    <span style={s.meta}>
+                      💬 {commentCount.toLocaleString()}
+                    </span>
+                  )}
+                </>
               )}
-              {commentCount > 0 && (
-                <span style={s.eng}>💬 {commentCount.toLocaleString()}</span>
+              {inWindow && days != null && (
+                <span style={s.meta}>Day {Math.min(days + 1, 7)}/7</span>
+              )}
+              {viewsAt7Days != null && !inWindow && (
+                <span style={s.meta}>
+                  Day-7: {viewsAt7Days.toLocaleString()}
+                </span>
               )}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Context notes */}
-          {inWindow && days != null && (
-            <p style={s.note}>
-              Day {Math.min(days + 1, 7)} of 7 —&nbsp;
-              {remaining === 0
-                ? "snapshot will be taken on next refresh"
-                : `${remaining} day${remaining !== 1 ? "s" : ""} remaining`}
-            </p>
-          )}
-
-          {viewsAt7Days != null && !inWindow && (
-            <p style={s.note}>
-              Views at day 7: <strong>{viewsAt7Days.toLocaleString()}</strong>
-            </p>
-          )}
-
-          {status === "revived" && (
-            <p style={{ ...s.note, color: "#1d4ed8" }}>💡 {REVIVAL_NOTE}</p>
-          )}
+        {/* ── Row 5: three part counters ────────────────────────── */}
+        <div style={s.partsRow}>
+          <PartControl
+            label="Recorded"
+            value={item.recordedPart ?? 1}
+            color="#8b5cf6"
+            onInc={() => onIncrementRecorded(item.id)}
+            onDec={() => onDecrementRecorded(item.id)}
+            disableDec={(item.recordedPart ?? 1) <= 1}
+          />
+          <div style={s.divider} />
+          <PartControl
+            label="Uploaded"
+            value={item.uploadedPart ?? 1}
+            color={backlog > 0 ? "#f59e0b" : "#16a34a"}
+            onInc={() => onIncrementUploaded(item.id)}
+            onDec={() => onDecrementUploaded(item.id)}
+            disableDec={(item.uploadedPart ?? 1) <= 1}
+          />
+          <div style={s.divider} />
+          <PartControl
+            label="Current"
+            value={item.part}
+            color="#111"
+            onInc={() => onIncrement(item.id)}
+            onDec={() => onDecrement(item.id)}
+            disableDec={item.part <= 1}
+          />
         </div>
-      )}
 
-      {/* ── Part counters ──────────────────────────────────────────────── */}
-      <div style={s.partsRow}>
-        <PartControl
-          label="Current Part"
-          value={item.part}
-          onInc={() => onIncrement(item.id)}
-          onDec={() => onDecrement(item.id)}
-          disableDec={item.part <= 1}
-        />
-        <div style={s.divider} />
-        <PartControl
-          label="Uploaded Part"
-          value={item.uploadedPart ?? 1}
-          color="#16a34a"
-          onInc={() => onIncrementUploaded(item.id)}
-          onDec={() => onDecrementUploaded(item.id)}
-          disableDec={(item.uploadedPart ?? 1) <= 1}
-        />
-      </div>
+        {/* Backlog indicator */}
+        {backlog > 0 && (
+          <div style={s.backlogBadge}>
+            📦 {backlog} part{backlog > 1 ? "s" : ""} recorded, not yet uploaded
+          </div>
+        )}
 
-      {/* ── Todo textarea ───────────────────────────────────────────────── */}
-      <div style={s.todoSection}>
-        <p style={s.todoLabel}>📝 Todo</p>
-        <textarea
-          style={s.todoInput}
-          rows={2}
-          value={item.todo || ""}
-          onChange={(e) => onUpdateTodo(item.id, e.target.value)}
-          placeholder="Add a note or task…"
-        />
+        {/* ── Todo ─────────────────────────────────────────────── */}
+        {todo ? <p style={s.todoText}>📝 {todo}</p> : null}
       </div>
     </div>
   );
 }
 
-// ── Reusable part counter ─────────────────────────────────────────────────────
-function PartControl({
-  label,
-  value,
-  color = "#111",
-  onInc,
-  onDec,
-  disableDec,
-}) {
+function PartControl({ label, value, color, onInc, onDec, disableDec }) {
   return (
     <div style={s.partBlock}>
       <p style={s.partLabel}>{label}</p>
@@ -222,7 +211,7 @@ function PartControl({
         <button
           style={{
             ...s.decBtn,
-            opacity: disableDec ? 0.3 : 1,
+            opacity: disableDec ? 0.25 : 1,
             cursor: disableDec ? "not-allowed" : "pointer",
           }}
           disabled={disableDec}
@@ -235,199 +224,181 @@ function PartControl({
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
 const s = {
   card: {
     background: "#fff",
-    border: "1px solid #e5e5e5",
-    borderRadius: 14,
+    border: "1px solid #ececec",
+    borderRadius: 10,
     overflow: "hidden",
     display: "flex",
-    flexDirection: "column",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+    flexDirection: "row",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
   },
+  accent: { width: 4, flexShrink: 0 },
+  inner: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
 
   // Thumbnail
   thumbLink: { display: "block", position: "relative" },
-  thumb: {
-    width: "100%",
-    aspectRatio: "16/9",
-    objectFit: "cover",
-    display: "block",
-  },
-  thumbPlaceholder: {
-    width: "100%",
-    aspectRatio: "16/9",
-    background: "#f3f4f6",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  daysPill: {
+  thumb: { width: "100%", height: 90, objectFit: "cover", display: "block" },
+  pill: {
     position: "absolute",
-    bottom: 7,
-    right: 7,
-    background: "rgba(0,0,0,0.72)",
+    bottom: 5,
+    right: 5,
+    background: "rgba(0,0,0,0.7)",
     color: "#fff",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 700,
-    padding: "3px 9px",
+    padding: "2px 7px",
     borderRadius: 999,
   },
 
-  // Header
-  cardTop: {
+  // Top row
+  topRow: {
     display: "flex",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
-    padding: "0.85rem 1rem 0",
+    gap: 4,
+    padding: "0.55rem 0.65rem 0.2rem",
   },
+  nameWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  colorDot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
   name: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: 700,
     color: "#111",
-    wordBreak: "break-word",
-    lineHeight: 1.4,
     margin: 0,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
   },
-  videoTitle: {
-    fontSize: 11,
-    color: "#888",
-    margin: "2px 0 0",
-    lineHeight: 1.4,
-  },
-  actions: { display: "flex", gap: 2, flexShrink: 0 },
+  actions: { display: "flex", flexShrink: 0 },
   iconBtn: {
     background: "none",
     border: "none",
     cursor: "pointer",
-    padding: 4,
-    borderRadius: 6,
-    fontSize: 15,
+    padding: "2px 3px",
+    fontSize: 12,
+    lineHeight: 1,
   },
 
-  badgeRow: { padding: "0.5rem 1rem 0" },
+  // Status badge row
+  banner: {
+    margin: "4px 0.65rem 0",
+    background: "#f0fdf4",
+    color: "#15803d",
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "4px 8px",
+    borderRadius: 6,
+    border: "1px solid #bbf7d0",
+  },
 
-  // Stats
-  statsSection: {
-    padding: "0.6rem 1rem",
+  // Views block
+  viewsBlock: {
+    padding: "0.3rem 0.65rem 0",
     display: "flex",
     flexDirection: "column",
-    gap: 5,
+    gap: 4,
   },
-  viewsRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-  },
-  viewsLabel: {
-    fontSize: 11,
-    color: "#999",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-  },
-  viewsNum: { fontSize: 20, fontWeight: 700, color: "#111" },
-  viewsGoal: { fontSize: 12, color: "#bbb", fontWeight: 400 },
+  viewsRow: { display: "flex", alignItems: "baseline", gap: 4 },
+  viewsNum: { fontSize: 17, fontWeight: 700, color: "#111", lineHeight: 1 },
+  viewsSlash: { fontSize: 12, color: "#ddd" },
+  viewsGoal: { fontSize: 12, color: "#ccc" },
+  pct: { fontSize: 11, fontWeight: 700, marginLeft: "auto" },
   barTrack: {
-    height: 6,
-    background: "#f0f0f0",
+    height: 3,
+    background: "#f3f4f6",
     borderRadius: 999,
     overflow: "hidden",
   },
-  barFill: { height: "100%", borderRadius: 999, transition: "width 0.5s ease" },
-  engRow: { display: "flex", gap: 10 },
-  eng: { fontSize: 11, color: "#888" },
-  note: { fontSize: 11, color: "#999", margin: 0, lineHeight: 1.5 },
+  barFill: { height: "100%", borderRadius: 999, transition: "width 0.6s ease" },
+  metaRow: { display: "flex", gap: 8, flexWrap: "wrap" },
+  meta: { fontSize: 10, color: "#bbb" },
 
   // Part counters
   partsRow: {
     display: "flex",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: "0.75rem 1rem",
+    alignItems: "center",
+    padding: "0.4rem 0.65rem 0.3rem",
+    gap: 6,
   },
   partBlock: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 4,
+    gap: 2,
   },
   partLabel: {
     fontSize: 9,
-    color: "#aaa",
+    color: "#ccc",
     textTransform: "uppercase",
-    letterSpacing: "0.07em",
+    letterSpacing: "0.05em",
     margin: 0,
-    textAlign: "center",
+    whiteSpace: "nowrap",
   },
-  partNum: { fontSize: 26, fontWeight: 700, margin: 0, lineHeight: 1 },
+  partNum: { fontSize: 19, fontWeight: 700, margin: 0, lineHeight: 1 },
   partControls: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 4,
+    gap: 2,
   },
-  divider: {
-    width: 1,
-    background: "#efefef",
-    alignSelf: "stretch",
-    margin: "4px 0",
-  },
+  divider: { width: 1, background: "#f3f4f6", alignSelf: "stretch" },
   incBtn: {
-    width: 30,
-    height: 30,
+    width: 20,
+    height: 20,
     borderRadius: "50%",
-    border: "1px solid #ddd",
-    background: "#f5f5f5",
+    border: "1px solid #e8e8e8",
+    background: "#f8f8f8",
     cursor: "pointer",
-    fontSize: 18,
+    fontSize: 13,
     fontWeight: 700,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    color: "#111",
+    color: "#444",
   },
   decBtn: {
-    width: 22,
-    height: 22,
+    width: 15,
+    height: 15,
     borderRadius: "50%",
-    border: "1px solid #e5e5e5",
+    border: "1px solid #f0f0f0",
     background: "none",
-    fontSize: 14,
+    fontSize: 11,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    color: "#888",
+    color: "#aaa",
+  },
+
+  // Backlog
+  backlogBadge: {
+    margin: "0 0.65rem 0.3rem",
+    fontSize: 10,
+    color: "#92400e",
+    background: "#fffbeb",
+    border: "1px solid #fde68a",
+    borderRadius: 5,
+    padding: "3px 7px",
+    fontWeight: 600,
   },
 
   // Todo
-  todoSection: {
-    padding: "0 1rem 1rem",
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  todoLabel: {
-    fontSize: 9,
-    color: "#aaa",
-    textTransform: "uppercase",
-    letterSpacing: "0.07em",
-    margin: 0,
-  },
-  todoInput: {
-    width: "100%",
-    padding: "7px 10px",
-    border: "1px solid #efefef",
-    borderRadius: 8,
-    fontSize: 12,
-    color: "#111",
-    fontFamily: "inherit",
-    outline: "none",
-    background: "#fafafa",
-    resize: "none",
+  todoText: {
+    margin: "0 0.65rem 0.55rem",
+    fontSize: 11,
+    color: "#888",
     lineHeight: 1.4,
-    boxSizing: "border-box",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
   },
 };

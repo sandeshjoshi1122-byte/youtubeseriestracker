@@ -8,15 +8,15 @@ export default function SeriesGrid({
   onDecrement,
   onIncrementUploaded,
   onDecrementUploaded,
+  onIncrementRecorded,
+  onDecrementRecorded,
   onUpdateTodo,
 }) {
   if (series.length === 0) {
     return (
       <div style={s.empty}>
         <div style={s.icon}>▶</div>
-        <p>
-          No series yet — hit <strong>+ Add series</strong> to get started!
-        </p>
+        <p>Nothing here — try a different filter or add a new series.</p>
       </div>
     );
   }
@@ -33,6 +33,8 @@ export default function SeriesGrid({
           onDecrement={onDecrement}
           onIncrementUploaded={onIncrementUploaded}
           onDecrementUploaded={onDecrementUploaded}
+          onIncrementRecorded={onIncrementRecorded}
+          onDecrementRecorded={onDecrementRecorded}
           onUpdateTodo={onUpdateTodo}
         />
       ))}
@@ -44,14 +46,14 @@ const s = {
   empty: {
     textAlign: "center",
     padding: "4rem 1rem",
-    color: "#aaa",
+    color: "#bbb",
     fontSize: 14,
   },
-  icon: { fontSize: 38, marginBottom: "0.75rem", opacity: 0.3 },
+  icon: { fontSize: 32, marginBottom: "0.75rem", opacity: 0.25 },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-    gap: "12px",
+    gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+    gap: 10,
     alignItems: "start",
   },
 };

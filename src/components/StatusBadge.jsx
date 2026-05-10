@@ -1,33 +1,39 @@
 const CONFIG = {
-  active: {
-    label: "✅ Active",
-    bg: "#dcfce7",
+  upload_next: {
+    label: "🚀 Upload Next Part",
+    bg: "#f0fdf4",
     color: "#15803d",
-    tip: "Hit 100 views within 7 days — keep going!",
+    border: "#86efac",
   },
   watching: {
     label: "👀 Evaluating",
-    bg: "#fef9c3",
+    bg: "#fefce8",
     color: "#a16207",
-    tip: "Within the 7-day window — checking performance",
+    border: "#fde047",
+  },
+  active: {
+    label: "✅ Active",
+    bg: "#f0fdf4",
+    color: "#15803d",
+    border: "#86efac",
   },
   revived: {
     label: "💡 Revived",
-    bg: "#dbeafe",
+    bg: "#eff6ff",
     color: "#1d4ed8",
-    tip: "Missed 7-day goal but recovered — consider more episodes",
+    border: "#93c5fd",
   },
   discontinued: {
     label: "🔴 Discontinued",
-    bg: "#fee2e2",
+    bg: "#fef2f2",
     color: "#b91c1c",
-    tip: "Didn't reach 100 views in 7 days and hasn't recovered",
+    border: "#fca5a5",
   },
   no_video: {
-    label: "🎬 No video",
-    bg: "#f3f4f6",
+    label: "🎬 No video linked",
+    bg: "#f9fafb",
     color: "#6b7280",
-    tip: "Paste a video ID to start tracking",
+    border: "#e5e7eb",
   },
 };
 
@@ -35,18 +41,21 @@ export default function StatusBadge({ status }) {
   const cfg = CONFIG[status] ?? CONFIG.no_video;
   return (
     <span
-      title={cfg.tip}
       style={{
         display: "inline-flex",
         alignItems: "center",
-        padding: "3px 9px",
+        padding: "3px 10px",
         borderRadius: 999,
         fontSize: 11,
-        fontWeight: 600,
+        fontWeight: 700,
         background: cfg.bg,
         color: cfg.color,
+        border: `1px solid ${cfg.border}`,
         whiteSpace: "nowrap",
-        cursor: "help",
+        ...(status === "upload_next" && {
+          animation: "pulse 2s infinite",
+          fontSize: 12,
+        }),
       }}
     >
       {cfg.label}

@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { SERIES_COLORS } from "../constants";
 
-/** Accepts a full YouTube URL or a bare video ID */
 function extractVideoId(raw) {
   try {
     const url = new URL(raw.trim());
@@ -16,25 +16,27 @@ export default function Modal({ title, initial, onSave, onClose }) {
   const [name, setName] = useState(initial?.name || "");
   const [part, setPart] = useState(initial?.part ?? 1);
   const [uploadedPart, setUploadedPart] = useState(initial?.uploadedPart ?? 1);
+  const [recordedPart, setRecordedPart] = useState(initial?.recordedPart ?? 1);
   const [videoInput, setVideoInput] = useState(initial?.latestVideoId || "");
   const [uploadDate, setUploadDate] = useState(
     initial?.uploadDate ? initial.uploadDate.slice(0, 10) : "",
   );
   const [todo, setTodo] = useState(initial?.todo || "");
+  const [color, setColor] = useState(initial?.color || SERIES_COLORS[0].value);
 
   const handleSave = () => {
     if (!name.trim()) return;
-    const videoId = extractVideoId(videoInput);
+    const videoId = videoInput.trim() ? extractVideoId(videoInput) : null;
     const videoChanged = videoId !== initial?.latestVideoId;
-
     onSave({
       name: name.trim(),
       part,
       uploadedPart,
-      latestVideoId: videoId || null,
+      recordedPart,
+      latestVideoId: videoId,
       uploadDate: uploadDate ? new Date(uploadDate).toISOString() : null,
       todo,
-      // Reset the 7-day snapshot when the user links a new video
+      color,
       ...(videoChanged && {
         viewsAt7Days: null,
         currentViews: null,
@@ -52,7 +54,29 @@ export default function Modal({ title, initial, onSave, onClose }) {
       <div style={s.modal}>
         <p style={s.title}>{title}</p>
 
-        <Field label="Series / game name">
+        {/* Color picker */}
+        <div style={s.field}>
+          <label style={s.label}>Series color</label>
+          <div style={s.colorGrid}>
+            {SERIES_COLORS.map((c) => (
+              <button
+                key={c.value}
+                title={c.name}
+                onClick={() => setColor(c.value)}
+                style={{
+                  ...s.colorSwatch,
+                  background: c.value,
+                  outline: color === c.value ? `3px solid ${c.value}` : "none",
+                  outlineOffset: 2,
+                  transform: color === c.value ? "scale(1.2)" : "scale(1)",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div style={s.field}>
+          <label style={s.label}>Series / game name</label>
           <input
             autoFocus
             style={s.input}
@@ -61,21 +85,23 @@ export default function Modal({ title, initial, onSave, onClose }) {
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
             placeholder="e.g. Minecraft Hardcore"
           />
-        </Field>
+        </div>
 
-        <div style={s.twoCol}>
-          <Field label="Current part">
+        <div style={s.threeCol}>
+          <div style={s.field}>
+            <label style={s.label}>Recorded</label>
             <input
               style={s.input}
               type="number"
               min="1"
-              value={part}
+              value={recordedPart}
               onChange={(e) =>
-                setPart(Math.max(1, parseInt(e.target.value) || 1))
+                setRecordedPart(Math.max(1, parseInt(e.target.value) || 1))
               }
             />
-          </Field>
-          <Field label="Uploaded part">
+          </div>
+          <div style={s.field}>
+            <label style={s.label}>Uploaded</label>
             <input
               style={s.input}
               type="number"
@@ -85,10 +111,23 @@ export default function Modal({ title, initial, onSave, onClose }) {
                 setUploadedPart(Math.max(1, parseInt(e.target.value) || 1))
               }
             />
-          </Field>
+          </div>
+          <div style={s.field}>
+            <label style={s.label}>Current part</label>
+            <input
+              style={s.input}
+              type="number"
+              min="1"
+              value={part}
+              onChange={(e) =>
+                setPart(Math.max(1, parseInt(e.target.value) || 1))
+              }
+            />
+          </div>
         </div>
 
-        <Field label="Latest video ID or URL">
+        <div style={s.field}>
+          <label style={s.label}>Latest video ID or URL</label>
           <input
             style={s.input}
             value={videoInput}
@@ -96,12 +135,12 @@ export default function Modal({ title, initial, onSave, onClose }) {
             placeholder="dQw4w9WgXcQ  or  https://youtube.com/watch?v=…"
           />
           <span style={s.hint}>
-            Paste after each new upload — clears the 7-day snapshot
-            automatically.
+            Paste after each new upload — resets the 7-day snapshot.
           </span>
-        </Field>
+        </div>
 
-        <Field label="Upload date of that video">
+        <div style={s.field}>
+          <label style={s.label}>Upload date</label>
           <input
             style={s.input}
             type="date"
@@ -111,9 +150,10 @@ export default function Modal({ title, initial, onSave, onClose }) {
           <span style={s.hint}>
             Used to calculate the 7-day evaluation window.
           </span>
-        </Field>
+        </div>
 
-        <Field label="Todo / notes">
+        <div style={s.field}>
+          <label style={s.label}>Todo / notes</label>
           <textarea
             style={s.textarea}
             rows={3}
@@ -121,7 +161,7 @@ export default function Modal({ title, initial, onSave, onClose }) {
             onChange={(e) => setTodo(e.target.value)}
             placeholder="e.g. Record part 5, add intro music…"
           />
-        </Field>
+        </div>
 
         <div style={s.actions}>
           <button style={s.cancel} onClick={onClose}>
@@ -140,37 +180,11 @@ export default function Modal({ title, initial, onSave, onClose }) {
   );
 }
 
-function Field({ label, children }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        marginBottom: "0.85rem",
-      }}
-    >
-      <label
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: "#555",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
 const s = {
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,0.5)",
+    background: "rgba(0,0,0,0.45)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -179,26 +193,34 @@ const s = {
   },
   modal: {
     background: "#fff",
-    borderRadius: 16,
-    padding: "1.75rem",
+    borderRadius: 14,
+    padding: "1.5rem",
     width: "100%",
-    maxWidth: 430,
-    boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+    maxWidth: 420,
+    boxShadow: "0 12px 40px rgba(0,0,0,0.15)",
     maxHeight: "92vh",
     overflowY: "auto",
   },
-  title: {
-    fontSize: 17,
-    fontWeight: 700,
-    color: "#111",
-    margin: "0 0 1.25rem",
+  title: { fontSize: 16, fontWeight: 700, color: "#111", margin: "0 0 1.1rem" },
+  threeCol: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 },
+  field: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    marginBottom: "0.8rem",
   },
-  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+  label: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#666",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  },
   input: {
-    padding: "9px 12px",
-    border: "1.5px solid #e0e0e0",
+    padding: "8px 11px",
+    border: "1.5px solid #e8e8e8",
     borderRadius: 8,
-    fontSize: 14,
+    fontSize: 13,
     color: "#111",
     outline: "none",
     fontFamily: "inherit",
@@ -207,10 +229,10 @@ const s = {
     boxSizing: "border-box",
   },
   textarea: {
-    padding: "9px 12px",
-    border: "1.5px solid #e0e0e0",
+    padding: "8px 11px",
+    border: "1.5px solid #e8e8e8",
     borderRadius: 8,
-    fontSize: 14,
+    fontSize: 13,
     color: "#111",
     outline: "none",
     fontFamily: "inherit",
@@ -220,21 +242,21 @@ const s = {
     width: "100%",
     boxSizing: "border-box",
   },
-  hint: { fontSize: 11, color: "#aaa", marginTop: 2 },
+  hint: { fontSize: 11, color: "#bbb" },
   actions: {
     display: "flex",
     gap: 8,
     justifyContent: "flex-end",
-    marginTop: "1.25rem",
+    marginTop: "1rem",
   },
   cancel: {
     padding: "8px 18px",
     borderRadius: 8,
-    border: "1.5px solid #ddd",
+    border: "1.5px solid #e8e8e8",
     background: "none",
-    color: "#555",
+    color: "#666",
     cursor: "pointer",
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "inherit",
   },
   save: {
@@ -244,8 +266,17 @@ const s = {
     background: "#FF0000",
     color: "#fff",
     cursor: "pointer",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 700,
     fontFamily: "inherit",
+  },
+  colorGrid: { display: "flex", gap: 8, flexWrap: "wrap" },
+  colorSwatch: {
+    width: 24,
+    height: 24,
+    borderRadius: "50%",
+    border: "none",
+    cursor: "pointer",
+    transition: "transform 0.12s",
   },
 };
