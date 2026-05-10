@@ -18,6 +18,8 @@ function saveToStorage(data) {
   }
 }
 
+const touch = (x) => ({ ...x, lastUpdated: Date.now() });
+
 export function useSeries() {
   const [series, setSeries] = useState(loadFromStorage);
   const [loading, setLoading] = useState(false);
@@ -32,7 +34,7 @@ export function useSeries() {
 
   const refreshStats = useCallback(async () => {
     const current = seriesRef.current;
-    const withVideo = current.filter((s) => s.latestVideoId);
+    const withVideo = current.filter((s) => s.latestVideoId && !s.archived);
     if (!withVideo.length) return;
 
     setLoading(true);
@@ -79,38 +81,59 @@ export function useSeries() {
   const addSeries = (data) =>
     setSeries((s) => [
       ...s,
-      { id: Date.now(), uploadedPart: 1, recordedPart: 1, ...data },
+      {
+        id: Date.now(),
+        uploadedPart: 1,
+        recordedPart: 1,
+        lastUpdated: Date.now(),
+        archived: false,
+        ...data,
+      },
     ]);
   const updateSeries = (id, data) =>
     setSeries((s) => s.map((x) => (x.id === id ? { ...x, ...data } : x)));
   const removeSeries = (id) => setSeries((s) => s.filter((x) => x.id !== id));
 
-  // ── Part counters ───────────────────────────────────────────────────────
+  // ── Archive ─────────────────────────────────────────────────────────────
+  const archiveSeries = (id) =>
+    setSeries((s) =>
+      s.map((x) => (x.id === id ? { ...x, archived: true } : x)),
+    );
+  const unarchiveSeries = (id) =>
+    setSeries((s) =>
+      s.map((x) => (x.id === id ? { ...x, archived: false } : x)),
+    );
+
+  // ── Part counters (all touch lastUpdated) ───────────────────────────────
   const incrementUploaded = (id) =>
     setSeries((s) =>
       s.map((x) =>
-        x.id === id ? { ...x, uploadedPart: (x.uploadedPart ?? 1) + 1 } : x,
+        x.id === id
+          ? touch({ ...x, uploadedPart: (x.uploadedPart ?? 1) + 1 })
+          : x,
       ),
     );
   const decrementUploaded = (id) =>
     setSeries((s) =>
       s.map((x) =>
         x.id === id && (x.uploadedPart ?? 1) > 1
-          ? { ...x, uploadedPart: x.uploadedPart - 1 }
+          ? touch({ ...x, uploadedPart: x.uploadedPart - 1 })
           : x,
       ),
     );
   const incrementRecorded = (id) =>
     setSeries((s) =>
       s.map((x) =>
-        x.id === id ? { ...x, recordedPart: (x.recordedPart ?? 1) + 1 } : x,
+        x.id === id
+          ? touch({ ...x, recordedPart: (x.recordedPart ?? 1) + 1 })
+          : x,
       ),
     );
   const decrementRecorded = (id) =>
     setSeries((s) =>
       s.map((x) =>
         x.id === id && (x.recordedPart ?? 1) > 1
-          ? { ...x, recordedPart: x.recordedPart - 1 }
+          ? touch({ ...x, recordedPart: x.recordedPart - 1 })
           : x,
       ),
     );
@@ -126,6 +149,8 @@ export function useSeries() {
     addSeries,
     updateSeries,
     removeSeries,
+    archiveSeries,
+    unarchiveSeries,
     incrementUploaded,
     decrementUploaded,
     incrementRecorded,

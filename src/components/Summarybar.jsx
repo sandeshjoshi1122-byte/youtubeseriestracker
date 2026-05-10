@@ -6,10 +6,11 @@ const STATUS_CONFIG = {
   revived: { label: "Revived", emoji: "💡" },
   discontinued: { label: "Discontinued", emoji: "🔴" },
   no_video: { label: "No Video", emoji: "🎬" },
+  archived: { label: "Archived", emoji: "🗄️" },
 };
 
 const PILL_COLORS = {
-  all: { bg: "#f3f4f6", active: "#111", text: "#111", activeText: "#fff" },
+  all: { bg: "#f3f4f6", active: "#111", text: "#555", activeText: "#fff" },
   upload_next: {
     bg: "#f0fdf4",
     active: "#16a34a",
@@ -46,9 +47,20 @@ const PILL_COLORS = {
     text: "#6b7280",
     activeText: "#fff",
   },
+  archived: {
+    bg: "#f1f5f9",
+    active: "#475569",
+    text: "#475569",
+    activeText: "#fff",
+  },
 };
 
-export default function SummaryBar({ series, activeFilter, onFilter }) {
+export default function SummaryBar({
+  series,
+  archivedCount,
+  activeFilter,
+  onFilter,
+}) {
   const counts = series.reduce((acc, s) => {
     acc[s.status] = (acc[s.status] || 0) + 1;
     return acc;
@@ -63,13 +75,21 @@ export default function SummaryBar({ series, activeFilter, onFilter }) {
     "revived",
     "discontinued",
     "no_video",
+    "archived",
   ];
 
   return (
     <div style={s.wrap}>
       {tabs.map((key) => {
-        const count = key === "all" ? total : counts[key] || 0;
-        if (key !== "all" && count === 0) return null;
+        const count =
+          key === "all"
+            ? total
+            : key === "archived"
+              ? archivedCount
+              : counts[key] || 0;
+
+        if (key !== "all" && key !== "archived" && count === 0) return null;
+        if (key === "archived" && count === 0) return null;
 
         const cfg = STATUS_CONFIG[key];
         const colors = PILL_COLORS[key];
@@ -106,12 +126,7 @@ export default function SummaryBar({ series, activeFilter, onFilter }) {
 }
 
 const s = {
-  wrap: {
-    display: "flex",
-    gap: 6,
-    flexWrap: "wrap",
-    marginBottom: "1.25rem",
-  },
+  wrap: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: "1.25rem" },
   pill: {
     display: "inline-flex",
     alignItems: "center",

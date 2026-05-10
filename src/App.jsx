@@ -17,6 +17,8 @@ export default function App() {
     addSeries,
     updateSeries,
     removeSeries,
+    archiveSeries,
+    unarchiveSeries,
     incrementUploaded,
     decrementUploaded,
     incrementRecorded,
@@ -38,33 +40,45 @@ export default function App() {
     setTimeout(refreshStats, 300);
   };
 
-  // Inject computed status then sort + filter
-  const seriesWithStatus = useMemo(
-    () => series.map((s) => ({ ...s, status: analyzeStatus(s) })),
+  // Active (non-archived) series with computed status
+  const activeSeries = useMemo(
+    () =>
+      series
+        .filter((s) => !s.archived)
+        .map((s) => ({ ...s, status: analyzeStatus(s) })),
+    [series],
+  );
+
+  // Archived series
+  const archivedSeries = useMemo(
+    () => series.filter((s) => s.archived),
     [series],
   );
 
   const handleFilter = (key) => setActiveFilter(key);
 
   const displaySeries = useMemo(() => {
+    if (activeFilter === "archived") {
+      return archivedSeries;
+    }
+
     const filtered =
       activeFilter === "all"
-        ? seriesWithStatus
-        : seriesWithStatus.filter((s) => s.status === activeFilter);
+        ? activeSeries
+        : activeSeries.filter((s) => s.status === activeFilter);
 
     return [...filtered].sort((a, b) => {
       const orderDiff =
         (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
       if (orderDiff !== 0) return orderDiff;
-      // Within same status: sort by views desc
       return (b.currentViews ?? 0) - (a.currentViews ?? 0);
     });
-  }, [seriesWithStatus, activeFilter]);
+  }, [activeSeries, archivedSeries, activeFilter]);
 
   return (
     <div style={s.page}>
       <Header
-        count={series.length}
+        count={activeSeries.length}
         loading={loading}
         apiError={apiError}
         lastRefreshed={lastRefreshed}
@@ -73,7 +87,8 @@ export default function App() {
       />
 
       <SummaryBar
-        series={seriesWithStatus}
+        series={activeSeries}
+        archivedCount={archivedSeries.length}
         activeFilter={activeFilter}
         onFilter={handleFilter}
       />
@@ -82,6 +97,8 @@ export default function App() {
         series={displaySeries}
         onEdit={openEdit}
         onDelete={removeSeries}
+        onArchive={archiveSeries}
+        onUnarchive={unarchiveSeries}
         onIncrementUploaded={incrementUploaded}
         onDecrementUploaded={decrementUploaded}
         onIncrementRecorded={incrementRecorded}

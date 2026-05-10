@@ -3,6 +3,7 @@ import {
   progressPercent,
   daysRemaining,
   daysSince,
+  isStale,
 } from "../utils/analyzePerformance";
 import { VIEW_THRESHOLD } from "../constants";
 
@@ -19,6 +20,8 @@ export default function SeriesCard({
   item,
   onEdit,
   onDelete,
+  onArchive,
+  onUnarchive,
   onIncrementUploaded,
   onDecrementUploaded,
   onIncrementRecorded,
@@ -37,6 +40,7 @@ export default function SeriesCard({
     commentCount,
     color,
     todo,
+    archived,
   } = item;
 
   const views = currentViews ?? 0;
@@ -51,14 +55,18 @@ export default function SeriesCard({
     (item.recordedPart ?? 1) - (item.uploadedPart ?? 1),
   );
   const accentColor = color || "#e5e7eb";
+  const stale = !archived && isStale(item);
+  const staleDays = item.lastUpdated
+    ? daysSince(new Date(item.lastUpdated).toISOString())
+    : null;
 
   return (
-    <div style={s.card}>
+    <div style={{ ...s.card, ...(stale ? s.staleCard : {}) }}>
       {/* Colored left border */}
       <div style={{ ...s.accent, background: accentColor }} />
 
       <div style={s.inner}>
-        {/* ── Row 1: thumbnail strip (if available) ───────────────── */}
+        {/* Thumbnail */}
         {thumbnail && (
           <a
             href={`https://youtube.com/watch?v=${latestVideoId}`}
@@ -79,19 +87,42 @@ export default function SeriesCard({
           </a>
         )}
 
-        {/* ── Row 2: name + actions ──────────────────────────────── */}
+        {/* Name + actions */}
         <div style={s.topRow}>
           <div style={s.nameWrap}>
             <span style={{ ...s.colorDot, background: accentColor }} />
             <p style={s.name}>{item.name}</p>
           </div>
           <div style={s.actions}>
-            <button style={s.iconBtn} title="Edit" onClick={() => onEdit(item)}>
-              ✏️
-            </button>
+            {!archived && (
+              <button
+                style={s.iconBtn}
+                title="Edit"
+                onClick={() => onEdit(item)}
+              >
+                ✏️
+              </button>
+            )}
+            {archived ? (
+              <button
+                style={s.iconBtn}
+                title="Restore"
+                onClick={() => onUnarchive(item.id)}
+              >
+                ↩️
+              </button>
+            ) : (
+              <button
+                style={s.iconBtn}
+                title="Archive"
+                onClick={() => onArchive(item.id)}
+              >
+                🗄️
+              </button>
+            )}
             <button
               style={s.iconBtn}
-              title="Delete"
+              title="Delete permanently"
               onClick={() => onDelete(item.id)}
             >
               🗑️
@@ -99,18 +130,28 @@ export default function SeriesCard({
           </div>
         </div>
 
-        {/* ── Row 3: status badge ────────────────────────────────── */}
-        <StatusBadge status={status} />
+        {/* Stale warning */}
+        {stale && (
+          <div style={s.staleWarning}>⚠️ Inactive for {staleDays} days</div>
+        )}
 
-        {/* ── Upload next banner ─────────────────────────────────── */}
-        {isUploadNext && (
+        {/* Archived banner */}
+        {archived && (
+          <div style={s.archivedBanner}>🗄️ Archived — hit ↩️ to restore</div>
+        )}
+
+        {/* Status badge */}
+        {!archived && <StatusBadge status={status} />}
+
+        {/* Upload next banner */}
+        {isUploadNext && !archived && (
           <div style={s.banner}>
             🚀 Ready — upload part {(item.uploadedPart ?? 1) + 1}!
           </div>
         )}
 
-        {/* ── Row 4: views + progress ───────────────────────────── */}
-        {latestVideoId && (
+        {/* Views + progress */}
+        {latestVideoId && !archived && (
           <div style={s.viewsBlock}>
             <div style={s.viewsRow}>
               <span style={s.viewsNum}>{views.toLocaleString()}</span>
@@ -127,19 +168,12 @@ export default function SeriesCard({
                 }}
               />
             </div>
-            {/* Engagement + notes */}
             <div style={s.metaRow}>
-              {(likeCount > 0 || commentCount > 0) && (
-                <>
-                  {likeCount > 0 && (
-                    <span style={s.meta}>👍 {likeCount.toLocaleString()}</span>
-                  )}
-                  {commentCount > 0 && (
-                    <span style={s.meta}>
-                      💬 {commentCount.toLocaleString()}
-                    </span>
-                  )}
-                </>
+              {likeCount > 0 && (
+                <span style={s.meta}>👍 {likeCount.toLocaleString()}</span>
+              )}
+              {commentCount > 0 && (
+                <span style={s.meta}>💬 {commentCount.toLocaleString()}</span>
               )}
               {inWindow && days != null && (
                 <span style={s.meta}>Day {Math.min(days + 1, 7)}/7</span>
@@ -153,36 +187,38 @@ export default function SeriesCard({
           </div>
         )}
 
-        {/* ── Row 5: three part counters ────────────────────────── */}
-        <div style={s.partsRow}>
-          <PartControl
-            label="Recorded"
-            value={item.recordedPart ?? 1}
-            color="#8b5cf6"
-            onInc={() => onIncrementRecorded(item.id)}
-            onDec={() => onDecrementRecorded(item.id)}
-            disableDec={(item.recordedPart ?? 1) <= 1}
-          />
-          <div style={s.divider} />
-          <PartControl
-            label="Uploaded"
-            value={item.uploadedPart ?? 1}
-            color={backlog > 0 ? "#f59e0b" : "#16a34a"}
-            onInc={() => onIncrementUploaded(item.id)}
-            onDec={() => onDecrementUploaded(item.id)}
-            disableDec={(item.uploadedPart ?? 1) <= 1}
-          />
-        </div>
+        {/* Part counters */}
+        {!archived && (
+          <div style={s.partsRow}>
+            <PartControl
+              label="Recorded"
+              value={item.recordedPart ?? 1}
+              color="#8b5cf6"
+              onInc={() => onIncrementRecorded(item.id)}
+              onDec={() => onDecrementRecorded(item.id)}
+              disableDec={(item.recordedPart ?? 1) <= 1}
+            />
+            <div style={s.divider} />
+            <PartControl
+              label="Uploaded"
+              value={item.uploadedPart ?? 1}
+              color={backlog > 0 ? "#f59e0b" : "#16a34a"}
+              onInc={() => onIncrementUploaded(item.id)}
+              onDec={() => onDecrementUploaded(item.id)}
+              disableDec={(item.uploadedPart ?? 1) <= 1}
+            />
+          </div>
+        )}
 
-        {/* Backlog indicator */}
-        {backlog > 0 && (
+        {/* Backlog */}
+        {backlog > 0 && !archived && (
           <div style={s.backlogBadge}>
             📦 {backlog} part{backlog > 1 ? "s" : ""} recorded, not yet uploaded
           </div>
         )}
 
-        {/* ── Todo ─────────────────────────────────────────────── */}
-        {todo ? <p style={s.todoText}>📝 {todo}</p> : null}
+        {/* Todo */}
+        {todo && !archived && <p style={s.todoText}>📝 {todo}</p>}
       </div>
     </div>
   );
@@ -222,11 +258,15 @@ const s = {
     display: "flex",
     flexDirection: "row",
     boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+    transition: "border-color 0.2s",
+  },
+  staleCard: {
+    border: "1px solid #fde68a",
+    boxShadow: "0 1px 4px rgba(251,191,36,0.15)",
   },
   accent: { width: 4, flexShrink: 0 },
   inner: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
 
-  // Thumbnail
   thumbLink: { display: "block", position: "relative" },
   thumb: { width: "100%", height: 90, objectFit: "cover", display: "block" },
   pill: {
@@ -241,7 +281,6 @@ const s = {
     borderRadius: 999,
   },
 
-  // Top row
   topRow: {
     display: "flex",
     alignItems: "center",
@@ -276,7 +315,27 @@ const s = {
     lineHeight: 1,
   },
 
-  // Status badge row
+  // Warnings / banners
+  staleWarning: {
+    margin: "0 0.65rem 0.2rem",
+    background: "#fffbeb",
+    color: "#92400e",
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "3px 8px",
+    borderRadius: 6,
+    border: "1px solid #fde68a",
+  },
+  archivedBanner: {
+    margin: "0 0.65rem 0.4rem",
+    background: "#f1f5f9",
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "3px 8px",
+    borderRadius: 6,
+    border: "1px solid #e2e8f0",
+  },
   banner: {
     margin: "4px 0.65rem 0",
     background: "#f0fdf4",
@@ -288,7 +347,6 @@ const s = {
     border: "1px solid #bbf7d0",
   },
 
-  // Views block
   viewsBlock: {
     padding: "0.3rem 0.65rem 0",
     display: "flex",
@@ -310,7 +368,6 @@ const s = {
   metaRow: { display: "flex", gap: 8, flexWrap: "wrap" },
   meta: { fontSize: 10, color: "#bbb" },
 
-  // Part counters
   partsRow: {
     display: "flex",
     alignItems: "center",
@@ -367,7 +424,6 @@ const s = {
     color: "#aaa",
   },
 
-  // Backlog
   backlogBadge: {
     margin: "0 0.65rem 0.3rem",
     fontSize: 10,
@@ -378,8 +434,6 @@ const s = {
     padding: "3px 7px",
     fontWeight: 600,
   },
-
-  // Todo
   todoText: {
     margin: "0 0.65rem 0.55rem",
     fontSize: 11,

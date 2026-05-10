@@ -24,3 +24,5 @@ export const SERIES_COLORS = [
   { name: "Pink", value: "#ec4899" },
   { name: "Slate", value: "#94a3b8" },
 ];
+
+export const STALE_DAYS = 14; // days before a series is considered inactive
