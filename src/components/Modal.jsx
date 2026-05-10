@@ -14,7 +14,6 @@ function extractVideoId(raw) {
 
 export default function Modal({ title, initial, onSave, onClose }) {
   const [name, setName] = useState(initial?.name || "");
-  const [part, setPart] = useState(initial?.part ?? 1);
   const [uploadedPart, setUploadedPart] = useState(initial?.uploadedPart ?? 1);
   const [recordedPart, setRecordedPart] = useState(initial?.recordedPart ?? 1);
   const [videoInput, setVideoInput] = useState(initial?.latestVideoId || "");
@@ -30,7 +29,6 @@ export default function Modal({ title, initial, onSave, onClose }) {
     const videoChanged = videoId !== initial?.latestVideoId;
     onSave({
       name: name.trim(),
-      part,
       uploadedPart,
       recordedPart,
       latestVideoId: videoId,
@@ -109,18 +107,6 @@ export default function Modal({ title, initial, onSave, onClose }) {
               value={uploadedPart}
               onChange={(e) =>
                 setUploadedPart(Math.max(1, parseInt(e.target.value) || 1))
-              }
-            />
-          </div>
-          <div style={s.field}>
-            <label style={s.label}>Current part</label>
-            <input
-              style={s.input}
-              type="number"
-              min="1"
-              value={part}
-              onChange={(e) =>
-                setPart(Math.max(1, parseInt(e.target.value) || 1))
               }
             />
           </div>

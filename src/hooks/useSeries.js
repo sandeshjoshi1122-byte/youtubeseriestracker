@@ -79,23 +79,13 @@ export function useSeries() {
   const addSeries = (data) =>
     setSeries((s) => [
       ...s,
-      { id: Date.now(), part: 1, uploadedPart: 1, recordedPart: 1, ...data },
+      { id: Date.now(), uploadedPart: 1, recordedPart: 1, ...data },
     ]);
   const updateSeries = (id, data) =>
     setSeries((s) => s.map((x) => (x.id === id ? { ...x, ...data } : x)));
   const removeSeries = (id) => setSeries((s) => s.filter((x) => x.id !== id));
 
   // ── Part counters ───────────────────────────────────────────────────────
-  const incrementPart = (id) =>
-    setSeries((s) =>
-      s.map((x) => (x.id === id ? { ...x, part: x.part + 1 } : x)),
-    );
-  const decrementPart = (id) =>
-    setSeries((s) =>
-      s.map((x) =>
-        x.id === id && x.part > 1 ? { ...x, part: x.part - 1 } : x,
-      ),
-    );
   const incrementUploaded = (id) =>
     setSeries((s) =>
       s.map((x) =>
@@ -136,8 +126,6 @@ export function useSeries() {
     addSeries,
     updateSeries,
     removeSeries,
-    incrementPart,
-    decrementPart,
     incrementUploaded,
     decrementUploaded,
     incrementRecorded,

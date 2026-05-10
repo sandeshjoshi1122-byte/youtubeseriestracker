@@ -4,8 +4,6 @@ export default function SeriesGrid({
   series,
   onEdit,
   onDelete,
-  onIncrement,
-  onDecrement,
   onIncrementUploaded,
   onDecrementUploaded,
   onIncrementRecorded,
@@ -29,8 +27,6 @@ export default function SeriesGrid({
           item={item}
           onEdit={onEdit}
           onDelete={onDelete}
-          onIncrement={onIncrement}
-          onDecrement={onDecrement}
           onIncrementUploaded={onIncrementUploaded}
           onDecrementUploaded={onDecrementUploaded}
           onIncrementRecorded={onIncrementRecorded}

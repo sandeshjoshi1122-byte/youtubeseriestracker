@@ -19,8 +19,6 @@ export default function SeriesCard({
   item,
   onEdit,
   onDelete,
-  onIncrement,
-  onDecrement,
   onIncrementUploaded,
   onDecrementUploaded,
   onIncrementRecorded,
@@ -173,15 +171,6 @@ export default function SeriesCard({
             onInc={() => onIncrementUploaded(item.id)}
             onDec={() => onDecrementUploaded(item.id)}
             disableDec={(item.uploadedPart ?? 1) <= 1}
-          />
-          <div style={s.divider} />
-          <PartControl
-            label="Current"
-            value={item.part}
-            color="#111"
-            onInc={() => onIncrement(item.id)}
-            onDec={() => onDecrement(item.id)}
-            disableDec={item.part <= 1}
           />
         </div>
 

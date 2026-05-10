@@ -17,8 +17,6 @@ export default function App() {
     addSeries,
     updateSeries,
     removeSeries,
-    incrementPart,
-    decrementPart,
     incrementUploaded,
     decrementUploaded,
     incrementRecorded,
@@ -84,8 +82,6 @@ export default function App() {
         series={displaySeries}
         onEdit={openEdit}
         onDelete={removeSeries}
-        onIncrement={incrementPart}
-        onDecrement={decrementPart}
         onIncrementUploaded={incrementUploaded}
         onDecrementUploaded={decrementUploaded}
         onIncrementRecorded={incrementRecorded}
