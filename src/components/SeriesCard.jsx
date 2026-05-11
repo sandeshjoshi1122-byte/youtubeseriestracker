@@ -120,13 +120,15 @@ export default function SeriesCard({
                 🗄️
               </button>
             )}
-            <button
-              style={s.iconBtn}
-              title="Delete permanently"
-              onClick={() => onDelete(item.id)}
-            >
-              🗑️
-            </button>
+            {archived && (
+              <button
+                style={s.iconBtn}
+                title="Delete permanently"
+                onClick={() => onDelete(item.id)}
+              >
+                🗑️
+              </button>
+            )}
           </div>
         </div>
 
