@@ -129,7 +129,7 @@ export default function App() {
 
 const s = {
   page: {
-    maxWidth: "1400px",
+    width: "100%",
     margin: "0 auto",
     padding: "1.5rem 1.25rem",
     fontFamily: "system-ui, -apple-system, sans-serif",
