@@ -3,6 +3,8 @@ const STATUS_CONFIG = {
   upload_next: { label: "Upload Next", emoji: "🚀" },
   watching: { label: "Evaluating", emoji: "👀" },
   active: { label: "Active", emoji: "✅" },
+  scheduled: { label: "Scheduled", emoji: "⏰" },
+  needs_refresh: { label: "Go Live", emoji: "🔔" },
   revived: { label: "Revived", emoji: "💡" },
   discontinued: { label: "Discontinued", emoji: "🔴" },
   no_video: { label: "No Video", emoji: "🎬" },
@@ -10,7 +12,12 @@ const STATUS_CONFIG = {
 };
 
 const PILL_COLORS = {
-  all: { bg: "#f3f4f6", active: "#111", text: "#555", activeText: "#fff" },
+  all: {
+    bg: "#f3f4f6",
+    active: "#374151",
+    text: "#6b7280",
+    activeText: "#fff",
+  },
   upload_next: {
     bg: "#f0fdf4",
     active: "#16a34a",
@@ -29,10 +36,22 @@ const PILL_COLORS = {
     text: "#2563eb",
     activeText: "#fff",
   },
-  revived: {
+  scheduled: {
     bg: "#f5f3ff",
-    active: "#7c3aed",
-    text: "#7c3aed",
+    active: "#6d28d9",
+    text: "#6d28d9",
+    activeText: "#fff",
+  },
+  needs_refresh: {
+    bg: "#fff7ed",
+    active: "#c2410c",
+    text: "#c2410c",
+    activeText: "#fff",
+  },
+  revived: {
+    bg: "#f0fdf4",
+    active: "#166534",
+    text: "#166534",
     activeText: "#fff",
   },
   discontinued: {
@@ -44,13 +63,13 @@ const PILL_COLORS = {
   no_video: {
     bg: "#f9fafb",
     active: "#6b7280",
-    text: "#6b7280",
+    text: "#9ca3af",
     activeText: "#fff",
   },
   archived: {
     bg: "#f1f5f9",
     active: "#475569",
-    text: "#475569",
+    text: "#64748b",
     activeText: "#fff",
   },
 };
@@ -66,12 +85,13 @@ export default function SummaryBar({
     return acc;
   }, {});
   const total = series.length;
-
   const tabs = [
     "all",
     "upload_next",
     "watching",
     "active",
+    "scheduled",
+    "needs_refresh",
     "revived",
     "discontinued",
     "no_video",
@@ -87,9 +107,7 @@ export default function SummaryBar({
             : key === "archived"
               ? archivedCount
               : counts[key] || 0;
-
-        if (key !== "all" && key !== "archived" && count === 0) return null;
-        if (key === "archived" && count === 0) return null;
+        if (key !== "all" && count === 0) return null;
 
         const cfg = STATUS_CONFIG[key];
         const colors = PILL_COLORS[key];
@@ -112,8 +130,8 @@ export default function SummaryBar({
               style={{
                 ...s.count,
                 background: isActive
-                  ? "rgba(255,255,255,0.25)"
-                  : "rgba(0,0,0,0.07)",
+                  ? "rgba(255,255,255,0.2)"
+                  : "rgba(0,0,0,0.08)",
               }}
             >
               {count}
@@ -126,12 +144,12 @@ export default function SummaryBar({
 }
 
 const s = {
-  wrap: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: "1.25rem" },
+  wrap: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: "1rem" },
   pill: {
     display: "inline-flex",
     alignItems: "center",
     gap: 5,
-    padding: "5px 12px",
+    padding: "5px 11px",
     borderRadius: 999,
     fontSize: 12,
     fontWeight: 600,

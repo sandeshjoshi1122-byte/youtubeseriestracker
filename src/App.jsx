@@ -19,6 +19,7 @@ export default function App() {
     removeSeries,
     archiveSeries,
     unarchiveSeries,
+    markAsPublic,
     incrementUploaded,
     decrementUploaded,
     incrementRecorded,
@@ -28,6 +29,7 @@ export default function App() {
 
   const [modal, setModal] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
+  const [search, setSearch] = useState("");
 
   const openAdd = () => setModal({ type: "add" });
   const openEdit = (item) => setModal({ type: "edit", item });
@@ -40,7 +42,6 @@ export default function App() {
     setTimeout(refreshStats, 300);
   };
 
-  // Active (non-archived) series with computed status
   const activeSeries = useMemo(
     () =>
       series
@@ -49,31 +50,32 @@ export default function App() {
     [series],
   );
 
-  // Archived series
   const archivedSeries = useMemo(
     () => series.filter((s) => s.archived),
     [series],
   );
 
-  const handleFilter = (key) => setActiveFilter(key);
-
   const displaySeries = useMemo(() => {
-    if (activeFilter === "archived") {
-      return archivedSeries;
-    }
+    const pool = activeFilter === "archived" ? archivedSeries : activeSeries;
 
     const filtered =
-      activeFilter === "all"
-        ? activeSeries
-        : activeSeries.filter((s) => s.status === activeFilter);
+      activeFilter === "all" || activeFilter === "archived"
+        ? pool
+        : pool.filter((s) => s.status === activeFilter);
 
-    return [...filtered].sort((a, b) => {
+    const searched = search.trim()
+      ? filtered.filter((s) =>
+          s.name.toLowerCase().includes(search.toLowerCase()),
+        )
+      : filtered;
+
+    return [...searched].sort((a, b) => {
       const orderDiff =
         (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
       if (orderDiff !== 0) return orderDiff;
       return (b.currentViews ?? 0) - (a.currentViews ?? 0);
     });
-  }, [activeSeries, archivedSeries, activeFilter]);
+  }, [activeSeries, archivedSeries, activeFilter, search]);
 
   return (
     <div style={s.page}>
@@ -84,21 +86,28 @@ export default function App() {
         lastRefreshed={lastRefreshed}
         onAdd={openAdd}
         onRefresh={refreshStats}
+        search={search}
+        onSearch={setSearch}
       />
 
       <SummaryBar
         series={activeSeries}
         archivedCount={archivedSeries.length}
         activeFilter={activeFilter}
-        onFilter={handleFilter}
+        onFilter={(key) => {
+          setActiveFilter(key);
+          setSearch("");
+        }}
       />
 
       <SeriesGrid
         series={displaySeries}
+        activeFilter={activeFilter}
         onEdit={openEdit}
         onDelete={removeSeries}
         onArchive={archiveSeries}
         onUnarchive={unarchiveSeries}
+        onMarkAsPublic={markAsPublic}
         onIncrementUploaded={incrementUploaded}
         onDecrementUploaded={decrementUploaded}
         onIncrementRecorded={incrementRecorded}
@@ -120,11 +129,11 @@ export default function App() {
 
 const s = {
   page: {
-    width: "100%",
+    maxWidth: "1400px",
     margin: "0 auto",
-    padding: "1.75rem 1.25rem",
+    padding: "1.5rem 1.25rem",
     fontFamily: "system-ui, -apple-system, sans-serif",
     minHeight: "100vh",
-    background: "#f7f7f7",
+    background: "#f4f4f5",
   },
 };

@@ -1,15 +1,18 @@
 export const STORAGE_KEY = "yt-parts-tracker-v2";
 export const VIEW_THRESHOLD = 100;
 export const WINDOW_DAYS = 7;
+export const STALE_DAYS = 14;
 export const YT_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
 
 export const STATUS_ORDER = {
   upload_next: 0,
   watching: 1,
   active: 2,
-  revived: 3,
-  discontinued: 4,
-  no_video: 5,
+  scheduled: 3,
+  needs_refresh: 4,
+  revived: 5,
+  discontinued: 6,
+  no_video: 7,
 };
 
 export const SERIES_COLORS = [
@@ -24,5 +27,3 @@ export const SERIES_COLORS = [
   { name: "Pink", value: "#ec4899" },
   { name: "Slate", value: "#94a3b8" },
 ];
-
-export const STALE_DAYS = 14; // days before a series is considered inactive

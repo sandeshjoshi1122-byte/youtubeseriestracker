@@ -34,7 +34,10 @@ export function useSeries() {
 
   const refreshStats = useCallback(async () => {
     const current = seriesRef.current;
-    const withVideo = current.filter((s) => s.latestVideoId && !s.archived);
+    // Skip archived and scheduled videos — they won't return data from API
+    const withVideo = current.filter(
+      (s) => s.latestVideoId && !s.archived && !s.isScheduled,
+    );
     if (!withVideo.length) return;
 
     setLoading(true);
@@ -45,7 +48,7 @@ export function useSeries() {
 
       setSeries((prev) =>
         prev.map((s) => {
-          if (!s.latestVideoId) return s;
+          if (!s.latestVideoId || s.isScheduled) return s;
           const stats = statsMap[s.latestVideoId];
           if (!stats) return s;
 
@@ -77,7 +80,6 @@ export function useSeries() {
     refreshStats();
   }, [refreshStats]);
 
-  // ── CRUD ────────────────────────────────────────────────────────────────
   const addSeries = (data) =>
     setSeries((s) => [
       ...s,
@@ -87,14 +89,13 @@ export function useSeries() {
         recordedPart: 1,
         lastUpdated: Date.now(),
         archived: false,
+        isScheduled: false,
         ...data,
       },
     ]);
   const updateSeries = (id, data) =>
     setSeries((s) => s.map((x) => (x.id === id ? { ...x, ...data } : x)));
   const removeSeries = (id) => setSeries((s) => s.filter((x) => x.id !== id));
-
-  // ── Archive ─────────────────────────────────────────────────────────────
   const archiveSeries = (id) =>
     setSeries((s) =>
       s.map((x) => (x.id === id ? { ...x, archived: true } : x)),
@@ -104,7 +105,21 @@ export function useSeries() {
       s.map((x) => (x.id === id ? { ...x, archived: false } : x)),
     );
 
-  // ── Part counters (all touch lastUpdated) ───────────────────────────────
+  // Mark scheduled video as now public → clears scheduled flag, triggers normal tracking
+  const markAsPublic = (id) =>
+    setSeries((s) =>
+      s.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              isScheduled: false,
+              scheduledDate: null,
+              viewsAt7Days: null,
+            }
+          : x,
+      ),
+    );
+
   const incrementUploaded = (id) =>
     setSeries((s) =>
       s.map((x) =>
@@ -151,6 +166,7 @@ export function useSeries() {
     removeSeries,
     archiveSeries,
     unarchiveSeries,
+    markAsPublic,
     incrementUploaded,
     decrementUploaded,
     incrementRecorded,

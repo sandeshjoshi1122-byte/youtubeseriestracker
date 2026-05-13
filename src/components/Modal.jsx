@@ -21,7 +21,11 @@ export default function Modal({ title, initial, onSave, onClose }) {
     initial?.uploadDate ? initial.uploadDate.slice(0, 10) : "",
   );
   const [todo, setTodo] = useState(initial?.todo || "");
-  const [color, setColor] = useState(initial?.color || SERIES_COLORS[0].value);
+  const [color, setColor] = useState(initial?.color || SERIES_COLORS[6].value);
+  const [isScheduled, setIsScheduled] = useState(initial?.isScheduled || false);
+  const [scheduledDate, setScheduledDate] = useState(
+    initial?.scheduledDate ? initial.scheduledDate.slice(0, 10) : "",
+  );
 
   const handleSave = () => {
     if (!name.trim()) return;
@@ -33,8 +37,12 @@ export default function Modal({ title, initial, onSave, onClose }) {
       recordedPart,
       latestVideoId: videoId,
       uploadDate: uploadDate ? new Date(uploadDate).toISOString() : null,
+      scheduledDate: scheduledDate
+        ? new Date(scheduledDate).toISOString()
+        : null,
       todo,
       color,
+      isScheduled,
       ...(videoChanged && {
         viewsAt7Days: null,
         currentViews: null,
@@ -50,116 +58,170 @@ export default function Modal({ title, initial, onSave, onClose }) {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div style={s.modal}>
-        <p style={s.title}>{title}</p>
+        {/* Color strip at top */}
+        <div style={{ ...s.colorStrip, background: color }} />
 
-        {/* Color picker */}
-        <div style={s.field}>
-          <label style={s.label}>Series color</label>
-          <div style={s.colorGrid}>
-            {SERIES_COLORS.map((c) => (
-              <button
-                key={c.value}
-                title={c.name}
-                onClick={() => setColor(c.value)}
-                style={{
-                  ...s.colorSwatch,
-                  background: c.value,
-                  outline: color === c.value ? `3px solid ${c.value}` : "none",
-                  outlineOffset: 2,
-                  transform: color === c.value ? "scale(1.2)" : "scale(1)",
-                }}
+        <div style={s.body}>
+          <p style={s.title}>{title}</p>
+
+          {/* Color picker */}
+          <div style={s.field}>
+            <label style={s.label}>Series color</label>
+            <div style={s.colorGrid}>
+              {SERIES_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  title={c.name}
+                  onClick={() => setColor(c.value)}
+                  style={{
+                    ...s.colorSwatch,
+                    background: c.value,
+                    outline:
+                      color === c.value ? `3px solid ${c.value}` : "none",
+                    outlineOffset: 2,
+                    transform: color === c.value ? "scale(1.25)" : "scale(1)",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Name */}
+          <div style={s.field}>
+            <label style={s.label}>Series / game name</label>
+            <input
+              autoFocus
+              style={s.input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              placeholder="e.g. Minecraft Hardcore"
+            />
+          </div>
+
+          {/* Part counters */}
+          <div style={s.twoCol}>
+            <div style={s.field}>
+              <label style={s.label}>🎬 Recorded</label>
+              <input
+                style={s.input}
+                type="number"
+                min="1"
+                value={recordedPart}
+                onChange={(e) =>
+                  setRecordedPart(Math.max(1, parseInt(e.target.value) || 1))
+                }
               />
-            ))}
+            </div>
+            <div style={s.field}>
+              <label style={s.label}>📤 Uploaded</label>
+              <input
+                style={s.input}
+                type="number"
+                min="1"
+                value={uploadedPart}
+                onChange={(e) =>
+                  setUploadedPart(Math.max(1, parseInt(e.target.value) || 1))
+                }
+              />
+            </div>
           </div>
-        </div>
 
-        <div style={s.field}>
-          <label style={s.label}>Series / game name</label>
-          <input
-            autoFocus
-            style={s.input}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            placeholder="e.g. Minecraft Hardcore"
-          />
-        </div>
+          {/* Divider */}
+          <div style={s.divider} />
 
-        <div style={s.threeCol}>
+          {/* Video ID */}
           <div style={s.field}>
-            <label style={s.label}>Recorded</label>
+            <label style={s.label}>Latest video ID or URL</label>
             <input
               style={s.input}
-              type="number"
-              min="1"
-              value={recordedPart}
-              onChange={(e) =>
-                setRecordedPart(Math.max(1, parseInt(e.target.value) || 1))
-              }
+              value={videoInput}
+              onChange={(e) => setVideoInput(e.target.value)}
+              placeholder="Paste YouTube URL or video ID"
             />
+            <span style={s.hint}>
+              Paste after each new upload — resets the 7-day snapshot.
+            </span>
           </div>
+
+          {/* Scheduled toggle */}
+          <div style={s.toggleRow}>
+            <label style={s.toggleLabel}>
+              <div
+                style={{
+                  ...s.toggle,
+                  background: isScheduled ? "#8b5cf6" : "#e5e7eb",
+                }}
+                onClick={() => setIsScheduled((v) => !v)}
+              >
+                <div
+                  style={{
+                    ...s.toggleKnob,
+                    transform: isScheduled
+                      ? "translateX(16px)"
+                      : "translateX(0)",
+                  }}
+                />
+              </div>
+              <span style={s.toggleText}>
+                Video is scheduled (not yet public)
+              </span>
+            </label>
+          </div>
+
+          {isScheduled ? (
+            <div style={s.field}>
+              <label style={s.label}>Goes public on</label>
+              <input
+                style={s.input}
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+              />
+              <span style={s.hint}>
+                The card will show a countdown and skip API calls until this
+                date.
+              </span>
+            </div>
+          ) : (
+            <div style={s.field}>
+              <label style={s.label}>Upload date</label>
+              <input
+                style={s.input}
+                type="date"
+                value={uploadDate}
+                onChange={(e) => setUploadDate(e.target.value)}
+              />
+              <span style={s.hint}>
+                Used to calculate the 7-day evaluation window.
+              </span>
+            </div>
+          )}
+
+          {/* Todo */}
           <div style={s.field}>
-            <label style={s.label}>Uploaded</label>
-            <input
-              style={s.input}
-              type="number"
-              min="1"
-              value={uploadedPart}
-              onChange={(e) =>
-                setUploadedPart(Math.max(1, parseInt(e.target.value) || 1))
-              }
+            <label style={s.label}>Notes / todo</label>
+            <textarea
+              style={s.textarea}
+              rows={3}
+              value={todo}
+              onChange={(e) => setTodo(e.target.value)}
+              placeholder="e.g. Record part 5, add intro music…"
             />
           </div>
-        </div>
 
-        <div style={s.field}>
-          <label style={s.label}>Latest video ID or URL</label>
-          <input
-            style={s.input}
-            value={videoInput}
-            onChange={(e) => setVideoInput(e.target.value)}
-            placeholder="dQw4w9WgXcQ  or  https://youtube.com/watch?v=…"
-          />
-          <span style={s.hint}>
-            Paste after each new upload — resets the 7-day snapshot.
-          </span>
-        </div>
-
-        <div style={s.field}>
-          <label style={s.label}>Upload date</label>
-          <input
-            style={s.input}
-            type="date"
-            value={uploadDate}
-            onChange={(e) => setUploadDate(e.target.value)}
-          />
-          <span style={s.hint}>
-            Used to calculate the 7-day evaluation window.
-          </span>
-        </div>
-
-        <div style={s.field}>
-          <label style={s.label}>Todo / notes</label>
-          <textarea
-            style={s.textarea}
-            rows={3}
-            value={todo}
-            onChange={(e) => setTodo(e.target.value)}
-            placeholder="e.g. Record part 5, add intro music…"
-          />
-        </div>
-
-        <div style={s.actions}>
-          <button style={s.cancel} onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            style={{ ...s.save, opacity: name.trim() ? 1 : 0.4 }}
-            disabled={!name.trim()}
-            onClick={handleSave}
-          >
-            Save
-          </button>
+          <div style={s.actions}>
+            <button style={s.cancel} onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              style={{ ...s.save, opacity: name.trim() ? 1 : 0.4 }}
+              disabled={!name.trim()}
+              onClick={handleSave}
+            >
+              Save
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -170,7 +232,7 @@ const s = {
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,0.45)",
+    background: "rgba(0,0,0,0.5)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -180,28 +242,38 @@ const s = {
   modal: {
     background: "#fff",
     borderRadius: 14,
-    padding: "1.5rem",
+    overflow: "hidden",
     width: "100%",
     maxWidth: 420,
-    boxShadow: "0 12px 40px rgba(0,0,0,0.15)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
     maxHeight: "92vh",
-    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
   },
-  title: { fontSize: 16, fontWeight: 700, color: "#111", margin: "0 0 1.1rem" },
-  threeCol: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 },
+  colorStrip: { height: 5, flexShrink: 0, transition: "background 0.2s" },
+  body: {
+    padding: "1.25rem 1.5rem 1.5rem",
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 0,
+  },
+  title: { fontSize: 16, fontWeight: 700, color: "#111", margin: "0 0 1rem" },
+  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
   field: {
     display: "flex",
     flexDirection: "column",
     gap: 4,
-    marginBottom: "0.8rem",
+    marginBottom: "0.85rem",
   },
   label: {
     fontSize: 11,
     fontWeight: 700,
-    color: "#666",
+    color: "#888",
     textTransform: "uppercase",
     letterSpacing: "0.05em",
   },
+  divider: { height: 1, background: "#f3f4f6", margin: "0.5rem 0 1rem" },
   input: {
     padding: "8px 11px",
     border: "1.5px solid #e8e8e8",
@@ -213,6 +285,7 @@ const s = {
     background: "#fafafa",
     width: "100%",
     boxSizing: "border-box",
+    transition: "border-color 0.15s",
   },
   textarea: {
     padding: "8px 11px",
@@ -228,12 +301,51 @@ const s = {
     width: "100%",
     boxSizing: "border-box",
   },
-  hint: { fontSize: 11, color: "#bbb" },
+  hint: { fontSize: 11, color: "#bbb", marginTop: 2 },
+  colorGrid: { display: "flex", gap: 8, flexWrap: "wrap" },
+  colorSwatch: {
+    width: 22,
+    height: 22,
+    borderRadius: "50%",
+    border: "none",
+    cursor: "pointer",
+    transition: "transform 0.12s",
+  },
+  toggleRow: { marginBottom: "0.85rem" },
+  toggleLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    cursor: "pointer",
+  },
+  toggle: {
+    width: 36,
+    height: 20,
+    borderRadius: 999,
+    position: "relative",
+    cursor: "pointer",
+    transition: "background 0.2s",
+    flexShrink: 0,
+    border: "none",
+    padding: 0,
+  },
+  toggleKnob: {
+    position: "absolute",
+    top: 2,
+    left: 2,
+    width: 16,
+    height: 16,
+    borderRadius: "50%",
+    background: "#fff",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+    transition: "transform 0.2s",
+  },
+  toggleText: { fontSize: 13, color: "#444", fontWeight: 500 },
   actions: {
     display: "flex",
     gap: 8,
     justifyContent: "flex-end",
-    marginTop: "1rem",
+    marginTop: "0.5rem",
   },
   cancel: {
     padding: "8px 18px",
@@ -255,14 +367,5 @@ const s = {
     fontSize: 13,
     fontWeight: 700,
     fontFamily: "inherit",
-  },
-  colorGrid: { display: "flex", gap: 8, flexWrap: "wrap" },
-  colorSwatch: {
-    width: 24,
-    height: 24,
-    borderRadius: "50%",
-    border: "none",
-    cursor: "pointer",
-    transition: "transform 0.12s",
   },
 };
