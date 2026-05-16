@@ -113,8 +113,10 @@ export function useSeries() {
           ? {
               ...x,
               isScheduled: false,
+              uploadDate: x.scheduledDate || x.uploadDate, // preserve the scheduled date as upload date
               scheduledDate: null,
               viewsAt7Days: null,
+              currentViews: null,
             }
           : x,
       ),

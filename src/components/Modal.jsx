@@ -31,12 +31,22 @@ export default function Modal({ title, initial, onSave, onClose }) {
     if (!name.trim()) return;
     const videoId = videoInput.trim() ? extractVideoId(videoInput) : null;
     const videoChanged = videoId !== initial?.latestVideoId;
+
+    // When scheduled, the "goes public on" date IS the upload date
+    const resolvedUploadDate = isScheduled
+      ? scheduledDate
+        ? new Date(scheduledDate).toISOString()
+        : null
+      : uploadDate
+        ? new Date(uploadDate).toISOString()
+        : null;
+
     onSave({
       name: name.trim(),
       uploadedPart,
       recordedPart,
       latestVideoId: videoId,
-      uploadDate: uploadDate ? new Date(uploadDate).toISOString() : null,
+      uploadDate: resolvedUploadDate,
       scheduledDate: scheduledDate
         ? new Date(scheduledDate).toISOString()
         : null,
@@ -173,7 +183,7 @@ export default function Modal({ title, initial, onSave, onClose }) {
             <div style={s.field}>
               <label style={s.label}>Goes public on</label>
               <input
-                style={s.input}
+                style={s.dateInput}
                 type="date"
                 value={scheduledDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
@@ -187,7 +197,7 @@ export default function Modal({ title, initial, onSave, onClose }) {
             <div style={s.field}>
               <label style={s.label}>Upload date</label>
               <input
-                style={s.input}
+                style={s.dateInput}
                 type="date"
                 value={uploadDate}
                 onChange={(e) => setUploadDate(e.target.value)}
@@ -286,6 +296,21 @@ const s = {
     width: "100%",
     boxSizing: "border-box",
     transition: "border-color 0.15s",
+  },
+  dateInput: {
+    padding: "8px 11px",
+    border: "1.5px solid #e8e8e8",
+    borderRadius: 8,
+    fontSize: 13,
+    color: "#111",
+    outline: "none",
+    fontFamily: "inherit",
+    background: "#fafafa",
+    width: "100%",
+    boxSizing: "border-box",
+    cursor: "pointer",
+    // Force calendar icon to always show on all browsers
+    colorScheme: "light",
   },
   textarea: {
     padding: "8px 11px",
