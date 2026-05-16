@@ -14,8 +14,13 @@ export function daysRemaining(uploadDate) {
   return Math.max(0, WINDOW_DAYS - daysSince(uploadDate));
 }
 
-export function progressPercent(views) {
-  return Math.min(100, Math.round(((views ?? 0) / VIEW_THRESHOLD) * 100));
+export function getThreshold(series) {
+  return series.viewThreshold || VIEW_THRESHOLD;
+}
+
+export function progressPercent(views, threshold) {
+  const t = threshold || VIEW_THRESHOLD;
+  return Math.min(100, Math.round(((views ?? 0) / t) * 100));
 }
 
 export function isStale(series) {
@@ -44,13 +49,11 @@ export function analyzeStatus(series) {
     isScheduled,
     scheduledDate,
   } = series;
+  const threshold = getThreshold(series);
 
-  // Scheduled video — skip API, show countdown
   if (isScheduled) {
     const d = scheduledDate ? daysUntil(scheduledDate) : null;
-    if (d === null || d > 0) return "scheduled";
-    // date has passed → prompt user to mark as public
-    return "needs_refresh";
+    return d === null || d > 0 ? "scheduled" : "needs_refresh";
   }
 
   if (!latestVideoId || !uploadDate) return "no_video";
@@ -60,8 +63,8 @@ export function analyzeStatus(series) {
   const snap = viewsAt7Days ?? 0;
   const inWindow = days <= WINDOW_DAYS;
 
-  if (views >= VIEW_THRESHOLD) return "upload_next";
+  if (views >= threshold) return "upload_next";
   if (inWindow) return "watching";
-  if (snap >= VIEW_THRESHOLD) return "active";
+  if (snap >= threshold) return "active";
   return "discontinued";
 }

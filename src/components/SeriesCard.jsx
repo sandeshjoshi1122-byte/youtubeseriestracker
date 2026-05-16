@@ -40,6 +40,7 @@ export default function SeriesCard({
   const [todoValue, setTodoValue] = useState(item.todo || "");
   const [flashKey, setFlashKey] = useState({ rec: 0, upl: 0 });
   const todoRef = useRef(null);
+  const threshold = item.viewThreshold || VIEW_THRESHOLD;
 
   const setTodoRef = (el) => {
     todoRef.current = el;
@@ -58,7 +59,6 @@ export default function SeriesCard({
   const {
     status,
     latestVideoId,
-    thumbnail,
     videoTitle,
     uploadDate,
     currentViews,
@@ -71,7 +71,7 @@ export default function SeriesCard({
   } = item;
 
   const views = currentViews ?? 0;
-  const progress = progressPercent(views);
+  const progress = progressPercent(views, threshold);
   const barColor = BAR_COLOR[status] ?? BAR_COLOR.no_video;
   const inWindow = status === "watching";
   const isUploadNext = status === "upload_next";
@@ -88,6 +88,12 @@ export default function SeriesCard({
     ? daysSince(new Date(item.lastUpdated).toISOString())
     : null;
   const countdownDays = scheduledDate ? daysUntil(scheduledDate) : null;
+
+  const thumbnail =
+    item.thumbnail ||
+    (item.latestVideoId
+      ? `https://i.ytimg.com/vi/${item.latestVideoId}/mqdefault.jpg`
+      : null);
 
   const flash = (field) =>
     setFlashKey((k) => ({ ...k, [field]: k[field] + 1 }));
@@ -118,44 +124,62 @@ export default function SeriesCard({
       <div style={{ ...s.accent, background: accentColor }} />
 
       <div style={s.inner}>
-        {/* Thumbnail */}
-        {thumbnail && !isScheduled && (
+        {/* Thumbnail — show if available regardless of scheduled status */}
+        {thumbnail ? (
           <a
-            href={`https://youtube.com/watch?v=${latestVideoId}`}
+            href={
+              latestVideoId
+                ? `https://youtube.com/watch?v=${latestVideoId}`
+                : undefined
+            }
             target="_blank"
             rel="noreferrer"
             style={s.thumbLink}
+            onClick={(e) => {
+              if (!latestVideoId) e.preventDefault();
+            }}
           >
             <img
               src={thumbnail}
               alt={videoTitle ?? item.name}
               style={s.thumb}
             />
-            {inWindow && remaining != null && (
+
+            {/* Scheduled overlay on top of thumbnail */}
+            {isScheduled && (
+              <div style={s.scheduledOverlay}>
+                <span style={s.scheduledOverlayIcon}>⏰</span>
+                <span style={s.scheduledOverlayText}>
+                  {countdownDays !== null && countdownDays > 0
+                    ? `Goes public in ${countdownDays}d`
+                    : "Should be live now"}
+                </span>
+              </div>
+            )}
+
+            {/* Normal pills for non-scheduled */}
+            {!isScheduled && inWindow && remaining != null && (
               <div style={s.pill}>
                 {remaining === 0 ? "Last day!" : `${remaining}d left`}
               </div>
             )}
-            {isUploadNext && (
+            {!isScheduled && isUploadNext && (
               <div style={{ ...s.pill, background: "rgba(21,128,61,0.9)" }}>
                 🚀 Upload next!
               </div>
             )}
           </a>
-        )}
-
-        {/* Scheduled placeholder */}
-        {isScheduled && (
+        ) : (
+          /* No thumbnail yet — show placeholder */
           <div style={s.scheduledThumb}>
             <div style={s.scheduledInner}>
-              <span style={s.scheduledIcon}>⏰</span>
-              {countdownDays !== null && countdownDays > 0 && (
+              <span style={s.scheduledIcon}>{isScheduled ? "⏰" : "▶"}</span>
+              {isScheduled && (
                 <span style={s.scheduledDays}>
-                  Goes public in {countdownDays}d
+                  {countdownDays !== null && countdownDays > 0
+                    ? `Goes public in ${countdownDays}d`
+                    : "Should be live now"}
                 </span>
-              )}
-              {(countdownDays === null || countdownDays <= 0) && (
-                <span style={s.scheduledDays}>Should be live now</span>
               )}
             </div>
           </div>
@@ -277,7 +301,7 @@ export default function SeriesCard({
               <span style={{ ...s.viewsNum, color: barColor }}>
                 {views.toLocaleString()}
               </span>
-              <span style={s.viewsGoal}>/ {VIEW_THRESHOLD} views</span>
+              <span style={s.viewsGoal}>/ {threshold} views</span>
               <span style={s.pct}>{progress}%</span>
             </div>
             <div style={s.barTrack}>
@@ -496,6 +520,27 @@ const s = {
     padding: "2px 8px",
     borderRadius: 999,
     backdropFilter: "blur(4px)",
+  },
+
+  scheduledOverlay: {
+    position: "absolute",
+    inset: 0,
+    background: "rgba(109,40,217,0.55)",
+    backdropFilter: "blur(2px)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  scheduledOverlayIcon: { fontSize: 20 },
+  scheduledOverlayText: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#fff",
+    background: "rgba(0,0,0,0.4)",
+    padding: "2px 8px",
+    borderRadius: 999,
   },
 
   // Scheduled placeholder

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SERIES_COLORS } from "../constants";
+import { SERIES_COLORS, VIEW_THRESHOLD } from "../constants";
 
 function extractVideoId(raw) {
   try {
@@ -25,6 +25,9 @@ export default function Modal({ title, initial, onSave, onClose }) {
   const [isScheduled, setIsScheduled] = useState(initial?.isScheduled || false);
   const [scheduledDate, setScheduledDate] = useState(
     initial?.scheduledDate ? initial.scheduledDate.slice(0, 10) : "",
+  );
+  const [viewThreshold, setViewThreshold] = useState(
+    initial?.viewThreshold || "",
   );
 
   const handleSave = () => {
@@ -59,6 +62,7 @@ export default function Modal({ title, initial, onSave, onClose }) {
         thumbnail: null,
         videoTitle: null,
       }),
+      viewThreshold: viewThreshold ? parseInt(viewThreshold) : null, // null = use global default
     });
   };
 
@@ -135,6 +139,23 @@ export default function Modal({ title, initial, onSave, onClose }) {
                 }
               />
             </div>
+          </div>
+
+          <div style={s.field}>
+            <label style={s.label}>
+              Custom view goal (default: {VIEW_THRESHOLD})
+            </label>
+            <input
+              style={s.input}
+              type="number"
+              min="1"
+              value={viewThreshold}
+              onChange={(e) => setViewThreshold(e.target.value)}
+              placeholder={`Leave empty to use default (${VIEW_THRESHOLD} views)`}
+            />
+            <span style={s.hint}>
+              Override the view threshold for this series only.
+            </span>
           </div>
 
           {/* Divider */}
