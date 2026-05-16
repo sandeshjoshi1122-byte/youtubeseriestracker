@@ -10,6 +10,7 @@ function loadFromStorage() {
     return [];
   }
 }
+
 function saveToStorage(data) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -20,8 +21,27 @@ function saveToStorage(data) {
 
 const touch = (x) => ({ ...x, lastUpdated: Date.now() });
 
+function promoteScheduled(list) {
+  const now = Date.now();
+  return list.map((s) => {
+    if (!s.isScheduled || !s.scheduledDate) return s;
+    const isPast = new Date(s.scheduledDate).getTime() <= now;
+    if (!isPast) return s;
+    return {
+      ...s,
+      isScheduled: false,
+      uploadDate: s.scheduledDate,
+      scheduledDate: null,
+      viewsAt7Days: null,
+      currentViews: null,
+    };
+  });
+}
+
 export function useSeries() {
-  const [series, setSeries] = useState(loadFromStorage);
+  const [series, setSeries] = useState(() =>
+    promoteScheduled(loadFromStorage()),
+  );
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(null);
@@ -33,8 +53,17 @@ export function useSeries() {
   useEffect(() => saveToStorage(series), [series]);
 
   const refreshStats = useCallback(async () => {
+    // Auto-promote scheduled videos whose date has passed before fetching
+    setSeries((prev) => {
+      const promoted = promoteScheduled(prev);
+      seriesRef.current = promoted;
+      return promoted;
+    });
+
+    // Small tick so seriesRef is updated before we read it
+    await new Promise((r) => setTimeout(r, 0));
+
     const current = seriesRef.current;
-    // Skip archived and scheduled videos — they won't return data from API
     const withVideo = current.filter(
       (s) => s.latestVideoId && !s.archived && !s.isScheduled,
     );
@@ -42,6 +71,7 @@ export function useSeries() {
 
     setLoading(true);
     setApiError(null);
+
     try {
       const ids = withVideo.map((s) => s.latestVideoId);
       const statsMap = await fetchMultipleVideoStats(ids);
@@ -80,6 +110,7 @@ export function useSeries() {
     refreshStats();
   }, [refreshStats]);
 
+  // ── CRUD ──────────────────────────────────────────────────────────────────
   const addSeries = (data) =>
     setSeries((s) => [
       ...s,
@@ -93,35 +124,23 @@ export function useSeries() {
         ...data,
       },
     ]);
+
   const updateSeries = (id, data) =>
     setSeries((s) => s.map((x) => (x.id === id ? { ...x, ...data } : x)));
+
   const removeSeries = (id) => setSeries((s) => s.filter((x) => x.id !== id));
+
   const archiveSeries = (id) =>
     setSeries((s) =>
       s.map((x) => (x.id === id ? { ...x, archived: true } : x)),
     );
+
   const unarchiveSeries = (id) =>
     setSeries((s) =>
       s.map((x) => (x.id === id ? { ...x, archived: false } : x)),
     );
 
-  // Mark scheduled video as now public → clears scheduled flag, triggers normal tracking
-  const markAsPublic = (id) =>
-    setSeries((s) =>
-      s.map((x) =>
-        x.id === id
-          ? {
-              ...x,
-              isScheduled: false,
-              uploadDate: x.scheduledDate || x.uploadDate, // preserve the scheduled date as upload date
-              scheduledDate: null,
-              viewsAt7Days: null,
-              currentViews: null,
-            }
-          : x,
-      ),
-    );
-
+  // ── Part counters ─────────────────────────────────────────────────────────
   const incrementUploaded = (id) =>
     setSeries((s) =>
       s.map((x) =>
@@ -130,6 +149,7 @@ export function useSeries() {
           : x,
       ),
     );
+
   const decrementUploaded = (id) =>
     setSeries((s) =>
       s.map((x) =>
@@ -138,6 +158,7 @@ export function useSeries() {
           : x,
       ),
     );
+
   const incrementRecorded = (id) =>
     setSeries((s) =>
       s.map((x) =>
@@ -146,6 +167,7 @@ export function useSeries() {
           : x,
       ),
     );
+
   const decrementRecorded = (id) =>
     setSeries((s) =>
       s.map((x) =>
@@ -154,6 +176,7 @@ export function useSeries() {
           : x,
       ),
     );
+
   const updateTodo = (id, value) =>
     setSeries((s) => s.map((x) => (x.id === id ? { ...x, todo: value } : x)));
 
@@ -168,7 +191,6 @@ export function useSeries() {
     removeSeries,
     archiveSeries,
     unarchiveSeries,
-    markAsPublic,
     incrementUploaded,
     decrementUploaded,
     incrementRecorded,

@@ -88,6 +88,7 @@ export default function SeriesCard({
     ? daysSince(new Date(item.lastUpdated).toISOString())
     : null;
   const countdownDays = scheduledDate ? daysUntil(scheduledDate) : null;
+  console.log(item);
 
   const thumbnail =
     item.thumbnail ||

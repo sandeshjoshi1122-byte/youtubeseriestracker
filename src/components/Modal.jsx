@@ -17,32 +17,47 @@ export default function Modal({ title, initial, onSave, onClose }) {
   const [uploadedPart, setUploadedPart] = useState(initial?.uploadedPart ?? 1);
   const [recordedPart, setRecordedPart] = useState(initial?.recordedPart ?? 1);
   const [videoInput, setVideoInput] = useState(initial?.latestVideoId || "");
-  const [uploadDate, setUploadDate] = useState(
-    initial?.uploadDate ? initial.uploadDate.slice(0, 10) : "",
-  );
   const [todo, setTodo] = useState(initial?.todo || "");
   const [color, setColor] = useState(initial?.color || SERIES_COLORS[6].value);
   const [isScheduled, setIsScheduled] = useState(initial?.isScheduled || false);
-  const [scheduledDate, setScheduledDate] = useState(
-    initial?.scheduledDate ? initial.scheduledDate.slice(0, 10) : "",
-  );
   const [viewThreshold, setViewThreshold] = useState(
     initial?.viewThreshold || "",
   );
+
+  // Upload date + time (non-scheduled)
+  const [uploadDate, setUploadDate] = useState(
+    initial?.uploadDate ? initial.uploadDate.slice(0, 10) : "",
+  );
+  const [uploadTime, setUploadTime] = useState(
+    initial?.uploadDate
+      ? new Date(initial.uploadDate).toTimeString().slice(0, 5)
+      : "00:00",
+  );
+
+  // Scheduled date + time
+  const [scheduledDate, setScheduledDate] = useState(
+    initial?.scheduledDate ? initial.scheduledDate.slice(0, 10) : "",
+  );
+  const [scheduledTime, setScheduledTime] = useState(
+    initial?.scheduledDate
+      ? new Date(initial.scheduledDate).toTimeString().slice(0, 5)
+      : "00:00",
+  );
+
+  const buildISOString = (date, time) => {
+    if (!date) return null;
+    const t = time || "00:00";
+    return new Date(`${date}T${t}:00`).toISOString();
+  };
 
   const handleSave = () => {
     if (!name.trim()) return;
     const videoId = videoInput.trim() ? extractVideoId(videoInput) : null;
     const videoChanged = videoId !== initial?.latestVideoId;
 
-    // When scheduled, the "goes public on" date IS the upload date
     const resolvedUploadDate = isScheduled
-      ? scheduledDate
-        ? new Date(scheduledDate).toISOString()
-        : null
-      : uploadDate
-        ? new Date(uploadDate).toISOString()
-        : null;
+      ? buildISOString(scheduledDate, scheduledTime)
+      : buildISOString(uploadDate, uploadTime);
 
     onSave({
       name: name.trim(),
@@ -50,19 +65,19 @@ export default function Modal({ title, initial, onSave, onClose }) {
       recordedPart,
       latestVideoId: videoId,
       uploadDate: resolvedUploadDate,
-      scheduledDate: scheduledDate
-        ? new Date(scheduledDate).toISOString()
+      scheduledDate: isScheduled
+        ? buildISOString(scheduledDate, scheduledTime)
         : null,
       todo,
       color,
       isScheduled,
+      viewThreshold: viewThreshold ? parseInt(viewThreshold) : null,
       ...(videoChanged && {
         viewsAt7Days: null,
         currentViews: null,
         thumbnail: null,
         videoTitle: null,
       }),
-      viewThreshold: viewThreshold ? parseInt(viewThreshold) : null, // null = use global default
     });
   };
 
@@ -72,7 +87,7 @@ export default function Modal({ title, initial, onSave, onClose }) {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div style={s.modal}>
-        {/* Color strip at top */}
+        {/* Color strip */}
         <div style={{ ...s.colorStrip, background: color }} />
 
         <div style={s.body}>
@@ -141,6 +156,7 @@ export default function Modal({ title, initial, onSave, onClose }) {
             </div>
           </div>
 
+          {/* Custom view threshold */}
           <div style={s.field}>
             <label style={s.label}>
               Custom view goal (default: {VIEW_THRESHOLD})
@@ -158,7 +174,6 @@ export default function Modal({ title, initial, onSave, onClose }) {
             </span>
           </div>
 
-          {/* Divider */}
           <div style={s.divider} />
 
           {/* Video ID */}
@@ -177,54 +192,70 @@ export default function Modal({ title, initial, onSave, onClose }) {
 
           {/* Scheduled toggle */}
           <div style={s.toggleRow}>
-            <label style={s.toggleLabel}>
+            <div
+              style={{
+                ...s.toggle,
+                background: isScheduled ? "#8b5cf6" : "#e5e7eb",
+              }}
+              onClick={() => setIsScheduled((v) => !v)}
+            >
               <div
                 style={{
-                  ...s.toggle,
-                  background: isScheduled ? "#8b5cf6" : "#e5e7eb",
+                  ...s.toggleKnob,
+                  transform: isScheduled ? "translateX(16px)" : "translateX(0)",
                 }}
-                onClick={() => setIsScheduled((v) => !v)}
-              >
-                <div
-                  style={{
-                    ...s.toggleKnob,
-                    transform: isScheduled
-                      ? "translateX(16px)"
-                      : "translateX(0)",
-                  }}
-                />
-              </div>
-              <span style={s.toggleText}>
-                Video is scheduled (not yet public)
-              </span>
-            </label>
+              />
+            </div>
+            <span style={s.toggleText}>
+              Video is scheduled (not yet public)
+            </span>
           </div>
 
-          {isScheduled ? (
+          {/* Upload date + time — only when NOT scheduled */}
+          {!isScheduled && (
             <div style={s.field}>
-              <label style={s.label}>Goes public on</label>
-              <input
-                style={s.dateInput}
-                type="date"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-              />
-              <span style={s.hint}>
-                The card will show a countdown and skip API calls until this
-                date.
-              </span>
-            </div>
-          ) : (
-            <div style={s.field}>
-              <label style={s.label}>Upload date</label>
-              <input
-                style={s.dateInput}
-                type="date"
-                value={uploadDate}
-                onChange={(e) => setUploadDate(e.target.value)}
-              />
+              <label style={s.label}>Upload date & time</label>
+              <div style={s.dateTimeRow}>
+                <input
+                  style={{ ...s.dateInput, flex: 2 }}
+                  type="date"
+                  value={uploadDate}
+                  onChange={(e) => setUploadDate(e.target.value)}
+                />
+                <input
+                  style={{ ...s.dateInput, flex: 1 }}
+                  type="time"
+                  value={uploadTime}
+                  onChange={(e) => setUploadTime(e.target.value)}
+                />
+              </div>
               <span style={s.hint}>
                 Used to calculate the 7-day evaluation window.
+              </span>
+            </div>
+          )}
+
+          {/* Scheduled date + time — only when scheduled is ON */}
+          {isScheduled && (
+            <div style={s.field}>
+              <label style={s.label}>Goes public on</label>
+              <div style={s.dateTimeRow}>
+                <input
+                  style={{ ...s.dateInput, flex: 2 }}
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                />
+                <input
+                  style={{ ...s.dateInput, flex: 1 }}
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                />
+              </div>
+              <span style={s.hint}>
+                Auto-tracked as public once this date & time passes on next
+                refresh.
               </span>
             </div>
           )}
@@ -304,7 +335,8 @@ const s = {
     textTransform: "uppercase",
     letterSpacing: "0.05em",
   },
-  divider: { height: 1, background: "#f3f4f6", margin: "0.5rem 0 1rem" },
+  divider: { height: 1, background: "#f3f4f6", margin: "0.25rem 0 1rem" },
+
   input: {
     padding: "8px 11px",
     border: "1.5px solid #e8e8e8",
@@ -327,12 +359,11 @@ const s = {
     outline: "none",
     fontFamily: "inherit",
     background: "#fafafa",
-    width: "100%",
     boxSizing: "border-box",
     cursor: "pointer",
-    // Force calendar icon to always show on all browsers
     colorScheme: "light",
   },
+  dateTimeRow: { display: "flex", gap: 8 },
   textarea: {
     padding: "8px 11px",
     border: "1.5px solid #e8e8e8",
@@ -348,6 +379,7 @@ const s = {
     boxSizing: "border-box",
   },
   hint: { fontSize: 11, color: "#bbb", marginTop: 2 },
+
   colorGrid: { display: "flex", gap: 8, flexWrap: "wrap" },
   colorSwatch: {
     width: 22,
@@ -357,12 +389,12 @@ const s = {
     cursor: "pointer",
     transition: "transform 0.12s",
   },
-  toggleRow: { marginBottom: "0.85rem" },
-  toggleLabel: {
+
+  toggleRow: {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    cursor: "pointer",
+    marginBottom: "0.85rem",
   },
   toggle: {
     width: 36,
@@ -372,8 +404,6 @@ const s = {
     cursor: "pointer",
     transition: "background 0.2s",
     flexShrink: 0,
-    border: "none",
-    padding: 0,
   },
   toggleKnob: {
     position: "absolute",
@@ -387,6 +417,7 @@ const s = {
     transition: "transform 0.2s",
   },
   toggleText: { fontSize: 13, color: "#444", fontWeight: 500 },
+
   actions: {
     display: "flex",
     gap: 8,
