@@ -52,12 +52,14 @@ export default function Modal({ title, initial, onSave, onClose }) {
 
   const handleSave = () => {
     if (!name.trim()) return;
+    if (isScheduled && (!scheduledDate || !scheduledTime)) return; // required
+
     const videoId = videoInput.trim() ? extractVideoId(videoInput) : null;
     const videoChanged = videoId !== initial?.latestVideoId;
 
     const resolvedUploadDate = isScheduled
       ? buildISOString(scheduledDate, scheduledTime)
-      : buildISOString(uploadDate, uploadTime);
+      : buildISOString(uploadDate, null); // no time for regular uploads
 
     onSave({
       name: name.trim(),
@@ -211,31 +213,23 @@ export default function Modal({ title, initial, onSave, onClose }) {
             </span>
           </div>
 
-          {/* Upload date + time — only when NOT scheduled */}
+          {/* Upload date — only when NOT scheduled, no time */}
           {!isScheduled && (
             <div style={s.field}>
-              <label style={s.label}>Upload date & time</label>
-              <div style={s.dateTimeRow}>
-                <input
-                  style={{ ...s.dateInput, flex: 2 }}
-                  type="date"
-                  value={uploadDate}
-                  onChange={(e) => setUploadDate(e.target.value)}
-                />
-                <input
-                  style={{ ...s.dateInput, flex: 1 }}
-                  type="time"
-                  value={uploadTime}
-                  onChange={(e) => setUploadTime(e.target.value)}
-                />
-              </div>
+              <label style={s.label}>Upload date</label>
+              <input
+                style={s.dateInput}
+                type="date"
+                value={uploadDate}
+                onChange={(e) => setUploadDate(e.target.value)}
+              />
               <span style={s.hint}>
                 Used to calculate the 7-day evaluation window.
               </span>
             </div>
           )}
 
-          {/* Scheduled date + time — only when scheduled is ON */}
+          {/* Scheduled date + time — only when scheduled is ON, time is required */}
           {isScheduled && (
             <div style={s.field}>
               <label style={s.label}>Goes public on</label>
@@ -244,18 +238,19 @@ export default function Modal({ title, initial, onSave, onClose }) {
                   style={{ ...s.dateInput, flex: 2 }}
                   type="date"
                   value={scheduledDate}
+                  required
                   onChange={(e) => setScheduledDate(e.target.value)}
                 />
                 <input
                   style={{ ...s.dateInput, flex: 1 }}
                   type="time"
                   value={scheduledTime}
+                  required
                   onChange={(e) => setScheduledTime(e.target.value)}
                 />
               </div>
               <span style={s.hint}>
-                Auto-tracked as public once this date & time passes on next
-                refresh.
+                Auto-tracked once this exact date & time passes on next refresh.
               </span>
             </div>
           )}
@@ -277,8 +272,18 @@ export default function Modal({ title, initial, onSave, onClose }) {
               Cancel
             </button>
             <button
-              style={{ ...s.save, opacity: name.trim() ? 1 : 0.4 }}
-              disabled={!name.trim()}
+              style={{
+                ...s.save,
+                opacity:
+                  name.trim() &&
+                  (!isScheduled || (scheduledDate && scheduledTime))
+                    ? 1
+                    : 0.4,
+              }}
+              disabled={
+                !name.trim() ||
+                (isScheduled && (!scheduledDate || !scheduledTime))
+              }
               onClick={handleSave}
             >
               Save
