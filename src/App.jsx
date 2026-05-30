@@ -6,6 +6,7 @@ import Header from "./components/Header";
 import SummaryBar from "./components/SummaryBar";
 import SeriesGrid from "./components/SeriesGrid";
 import Modal from "./components/Modal";
+import Analytics from "./components/Analytics";
 
 export default function App() {
   const {
@@ -19,7 +20,6 @@ export default function App() {
     removeSeries,
     archiveSeries,
     unarchiveSeries,
-    markAsPublic,
     incrementUploaded,
     decrementUploaded,
     incrementRecorded,
@@ -30,6 +30,7 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("tracker"); // "tracker" | "analytics"
 
   const openAdd = () => setModal({ type: "add" });
   const openEdit = (item) => setModal({ type: "edit", item });
@@ -77,6 +78,7 @@ export default function App() {
     });
   }, [activeSeries, archivedSeries, activeFilter, search]);
 
+  // replace the return JSX with:
   return (
     <div style={s.page}>
       <Header
@@ -90,30 +92,68 @@ export default function App() {
         onSearch={setSearch}
       />
 
-      <SummaryBar
-        series={activeSeries}
-        archivedCount={archivedSeries.length}
-        activeFilter={activeFilter}
-        onFilter={(key) => {
-          setActiveFilter(key);
-          setSearch("");
-        }}
-      />
+      {/* Main tab switcher */}
+      <div style={s.mainTabs}>
+        <button
+          style={{
+            ...s.mainTab,
+            borderBottom:
+              activeTab === "tracker"
+                ? "2px solid #111"
+                : "2px solid transparent",
+            color: activeTab === "tracker" ? "#111" : "#aaa",
+            fontWeight: activeTab === "tracker" ? 700 : 500,
+          }}
+          onClick={() => setActiveTab("tracker")}
+        >
+          📋 Tracker
+        </button>
+        <button
+          style={{
+            ...s.mainTab,
+            borderBottom:
+              activeTab === "analytics"
+                ? "2px solid #111"
+                : "2px solid transparent",
+            color: activeTab === "analytics" ? "#111" : "#aaa",
+            fontWeight: activeTab === "analytics" ? 700 : 500,
+          }}
+          onClick={() => setActiveTab("analytics")}
+        >
+          📊 Analytics
+        </button>
+      </div>
 
-      <SeriesGrid
-        series={displaySeries}
-        activeFilter={activeFilter}
-        onEdit={openEdit}
-        onDelete={removeSeries}
-        onArchive={archiveSeries}
-        onUnarchive={unarchiveSeries}
-        onMarkAsPublic={markAsPublic}
-        onIncrementUploaded={incrementUploaded}
-        onDecrementUploaded={decrementUploaded}
-        onIncrementRecorded={incrementRecorded}
-        onDecrementRecorded={decrementRecorded}
-        onUpdateTodo={updateTodo}
-      />
+      {activeTab === "tracker" ? (
+        <>
+          <SummaryBar
+            series={activeSeries}
+            archivedCount={archivedSeries.length}
+            activeFilter={activeFilter}
+            onFilter={(key) => {
+              setActiveFilter(key);
+              setSearch("");
+            }}
+          />
+          <SeriesGrid
+            series={displaySeries}
+            activeFilter={activeFilter}
+            onEdit={openEdit}
+            onDelete={removeSeries}
+            onArchive={archiveSeries}
+            onUnarchive={unarchiveSeries}
+            onIncrementUploaded={incrementUploaded}
+            onDecrementUploaded={decrementUploaded}
+            onIncrementRecorded={incrementRecorded}
+            onDecrementRecorded={decrementRecorded}
+            onUpdateTodo={updateTodo}
+          />
+        </>
+      ) : (
+        <Analytics
+          series={series.map((s) => ({ ...s, status: analyzeStatus(s) }))}
+        />
+      )}
 
       {modal && (
         <Modal
@@ -135,5 +175,22 @@ const s = {
     fontFamily: "system-ui, -apple-system, sans-serif",
     minHeight: "100vh",
     background: "#f4f4f5",
+  },
+  mainTabs: {
+    display: "flex",
+    gap: 0,
+    marginBottom: "1.25rem",
+    borderBottom: "1px solid #ebebeb",
+  },
+  mainTab: {
+    padding: "0.6rem 1.25rem",
+    background: "none",
+    border: "none",
+    borderBottom: "2px solid transparent",
+    cursor: "pointer",
+    fontSize: 14,
+    fontFamily: "inherit",
+    transition: "all 0.15s",
+    marginBottom: "-1px",
   },
 };

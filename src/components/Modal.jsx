@@ -28,11 +28,6 @@ export default function Modal({ title, initial, onSave, onClose }) {
   const [uploadDate, setUploadDate] = useState(
     initial?.uploadDate ? initial.uploadDate.slice(0, 10) : "",
   );
-  const [uploadTime, setUploadTime] = useState(
-    initial?.uploadDate
-      ? new Date(initial.uploadDate).toTimeString().slice(0, 5)
-      : "00:00",
-  );
 
   // Scheduled date + time
   const [scheduledDate, setScheduledDate] = useState(
