@@ -1,6 +1,12 @@
-import { useMemo, useState } from "react";
-import { daysSince, progressPercent } from "../utils/analyzePerformance";
+import { useState, useCallback } from "react";
+import {
+  fetchUploadsPlaylistId,
+  fetchAllUploadedVideoIds,
+  fetchVideoStatsBatch,
+} from "../api/youtube";
 import { VIEW_THRESHOLD } from "../constants";
+
+const CHANNEL_HANDLE = "@gamernbdy";
 
 const WINDOWS = [
   { label: "Last 7 days", days: 7 },
@@ -8,261 +14,398 @@ const WINDOWS = [
   { label: "Last 30 days", days: 30 },
 ];
 
-export default function Analytics({ series }) {
-  const [activeWindow, setActiveWindow] = useState(7);
+function getCutoffDate(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
 
-  // Only non-archived series with a video and upload date
-  const eligible = useMemo(
-    () => series.filter((s) => !s.archived && s.latestVideoId && s.uploadDate),
-    [series],
+function daysAgoLabel(dateStr) {
+  const days = Math.floor(
+    (Date.now() - new Date(dateStr).getTime()) / 86_400_000,
   );
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return `${days}d ago`;
+}
 
-  const windowData = useMemo(() => {
-    return WINDOWS.map(({ label, days }) => {
-      const videos = eligible
-        .filter((s) => daysSince(s.uploadDate) <= days)
-        .sort((a, b) => (b.currentViews ?? 0) - (a.currentViews ?? 0));
+export default function Analytics() {
+  const [activeWindow, setActiveWindow] = useState(30);
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [fetchedWindow, setFetchedWindow] = useState(null);
+  const [progress, setProgress] = useState("");
 
-      const totalViews = videos.reduce(
-        (sum, s) => sum + (s.currentViews ?? 0),
-        0,
-      );
-      const totalLikes = videos.reduce((sum, s) => sum + (s.likeCount ?? 0), 0);
-      const totalComments = videos.reduce(
-        (sum, s) => sum + (s.commentCount ?? 0),
-        0,
-      );
-      const hitGoal = videos.filter(
-        (s) => (s.currentViews ?? 0) >= (s.viewThreshold || VIEW_THRESHOLD),
-      ).length;
-      const avgViews = videos.length
-        ? Math.round(totalViews / videos.length)
-        : 0;
+  const fetchAnalytics = useCallback(async (days) => {
+    setLoading(true);
+    setError(null);
+    setVideos([]);
+    setProgress("Fetching channel info…");
 
-      return {
-        label,
-        days,
-        videos,
-        totalViews,
-        totalLikes,
-        totalComments,
-        hitGoal,
-        avgViews,
-      };
-    });
-  }, [eligible]);
+    try {
+      // Step 1: get uploads playlist ID
+      const playlistId = await fetchUploadsPlaylistId(CHANNEL_HANDLE);
 
-  const active = windowData.find((w) => w.days === activeWindow);
+      // Step 2: paginate through uploads, stop when past cutoff
+      setProgress("Fetching upload history…");
+      const cutoff = getCutoffDate(days);
+      const uploaded = await fetchAllUploadedVideoIds(playlistId, cutoff);
+
+      if (!uploaded.length) {
+        setVideos([]);
+        setHasFetched(true);
+        setFetchedWindow(days);
+        setProgress("");
+        setLoading(false);
+        return;
+      }
+
+      // Step 3: fetch stats in batches of 50
+      setProgress(`Fetching stats for ${uploaded.length} videos…`);
+      const ids = uploaded.map((v) => v.videoId);
+      const statsMap = await fetchVideoStatsBatch(ids);
+
+      // Step 4: merge publishedAt from playlist with stats
+      const merged = uploaded
+        .map(({ videoId, publishedAt }) => {
+          const stats = statsMap[videoId];
+          if (!stats) return null;
+          return {
+            id: videoId,
+            title: stats.title,
+            thumbnail: stats.thumbnail,
+            publishedAt: publishedAt,
+            viewCount: stats.viewCount,
+            likeCount: stats.likeCount,
+            commentCount: stats.commentCount,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
+      setVideos(merged);
+      setHasFetched(true);
+      setFetchedWindow(days);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProgress("");
+      setLoading(false);
+    }
+  }, []);
+
+  const handleWindowChange = (days) => {
+    setActiveWindow(days);
+    // Always fetch fresh when switching windows
+    fetchAnalytics(days);
+  };
+
+  // Stats derived from fetched videos
+  const totalViews = videos.reduce((s, v) => s + v.viewCount, 0);
+  const totalLikes = videos.reduce((s, v) => s + v.likeCount, 0);
+  const totalComments = videos.reduce((s, v) => s + v.commentCount, 0);
+  const avgViews = videos.length ? Math.round(totalViews / videos.length) : 0;
+  const hitGoal = videos.filter((v) => v.viewCount >= VIEW_THRESHOLD).length;
+  const topVideo = videos.length
+    ? [...videos].sort((a, b) => b.viewCount - a.viewCount)[0]
+    : null;
+  const lowVideo =
+    videos.length > 1
+      ? [...videos].sort((a, b) => a.viewCount - b.viewCount)[0]
+      : null;
 
   return (
     <div style={s.page}>
-      {/* Tab switcher */}
+      {/* Window tabs */}
       <div style={s.tabs}>
-        {WINDOWS.map(({ label, days }) => (
-          <button
-            key={days}
-            style={{
-              ...s.tab,
-              background: activeWindow === days ? "#111" : "#fff",
-              color: activeWindow === days ? "#fff" : "#666",
-              borderColor: activeWindow === days ? "#111" : "#e5e7eb",
-            }}
-            onClick={() => setActiveWindow(days)}
-          >
-            {label}
-            <span
+        {WINDOWS.map(({ label, days }) => {
+          const isActive = activeWindow === days;
+          return (
+            <button
+              key={days}
               style={{
-                ...s.tabCount,
-                background:
-                  activeWindow === days ? "rgba(255,255,255,0.2)" : "#f3f4f6",
-                color: activeWindow === days ? "#fff" : "#888",
+                ...s.tab,
+                background: isActive ? "#111" : "#fff",
+                color: isActive ? "#fff" : "#666",
+                borderColor: isActive ? "#111" : "#e5e7eb",
               }}
+              onClick={() => handleWindowChange(days)}
+              disabled={loading}
             >
-              {windowData.find((w) => w.days === days)?.videos.length ?? 0}
-            </span>
-          </button>
-        ))}
+              {label}
+              {hasFetched && fetchedWindow === days && (
+                <span
+                  style={{
+                    ...s.tabCount,
+                    background: isActive ? "rgba(255,255,255,0.2)" : "#f3f4f6",
+                    color: isActive ? "#fff" : "#888",
+                  }}
+                >
+                  {videos.length}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        <button
+          style={{
+            ...s.tab,
+            background: "#FF0000",
+            color: "#fff",
+            borderColor: "#FF0000",
+            marginLeft: "auto",
+          }}
+          onClick={() => fetchAnalytics(activeWindow)}
+          disabled={loading}
+        >
+          {loading ? "⏳ Loading…" : "↻ Refresh"}
+        </button>
       </div>
 
-      {active?.videos.length === 0 ? (
+      {/* Initial state — not fetched yet */}
+      {!hasFetched && !loading && !error && (
         <div style={s.empty}>
           <div style={s.emptyIcon}>📊</div>
-          <p>No videos uploaded in the {active.label.toLowerCase()}.</p>
+          <p style={s.emptyText}>
+            Select a time window above to load your analytics.
+          </p>
         </div>
-      ) : (
-        <>
-          {/* Summary cards */}
-          <div style={s.summaryGrid}>
-            <StatCard
-              label="Total views"
-              value={active.totalViews.toLocaleString()}
-              sub={`across ${active.videos.length} video${active.videos.length !== 1 ? "s" : ""}`}
-              color="#3b82f6"
-            />
-            <StatCard
-              label="Avg views / video"
-              value={active.avgViews.toLocaleString()}
-              sub="mean across window"
-              color="#8b5cf6"
-            />
-            <StatCard
-              label="Hit goal"
-              value={`${active.hitGoal} / ${active.videos.length}`}
-              sub={`reached view threshold`}
-              color="#16a34a"
-            />
-            <StatCard
-              label="Total likes"
-              value={active.totalLikes.toLocaleString()}
-              sub="combined engagement"
-              color="#f59e0b"
-            />
-            <StatCard
-              label="Total comments"
-              value={active.totalComments.toLocaleString()}
-              sub="combined discussion"
-              color="#ec4899"
-            />
+      )}
+
+      {/* Loading state */}
+      {loading && (
+        <div style={s.loadingWrap}>
+          <div style={s.spinner}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                style={{
+                  ...s.spinnerBar,
+                  animationDelay: `${i * 0.12}s`,
+                  height: `${20 + i * 8}px`,
+                }}
+              />
+            ))}
           </div>
+          <p style={s.loadingText}>{progress}</p>
+        </div>
+      )}
 
-          {/* Video rows */}
-          <div style={s.tableWrap}>
-            <div style={s.tableHeader}>
-              <span style={{ flex: 3 }}>Series</span>
-              <span style={{ flex: 2 }}>Uploaded</span>
-              <span style={{ flex: 2, textAlign: "right" }}>Views</span>
-              <span style={{ flex: 2, textAlign: "right" }}>Goal</span>
-              <span style={{ flex: 1, textAlign: "right" }}>Likes</span>
-              <span style={{ flex: 1, textAlign: "right" }}>Comments</span>
+      {/* Error state */}
+      {error && !loading && (
+        <div style={s.errorWrap}>
+          <p style={s.errorTitle}>⚠️ Failed to load analytics</p>
+          <p style={s.errorMsg}>{error}</p>
+          <button
+            style={s.retryBtn}
+            onClick={() => fetchAnalytics(activeWindow)}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {/* Results */}
+      {hasFetched && !loading && !error && (
+        <>
+          {videos.length === 0 ? (
+            <div style={s.empty}>
+              <div style={s.emptyIcon}>🎬</div>
+              <p style={s.emptyText}>
+                No videos uploaded in the last {activeWindow} days.
+              </p>
             </div>
+          ) : (
+            <>
+              {/* Summary stat cards */}
+              <div style={s.summaryGrid}>
+                <StatCard
+                  label="Videos uploaded"
+                  value={videos.length}
+                  color="#3b82f6"
+                />
+                <StatCard
+                  label="Total views"
+                  value={totalViews.toLocaleString()}
+                  color="#8b5cf6"
+                />
+                <StatCard
+                  label="Avg views"
+                  value={avgViews.toLocaleString()}
+                  color="#f59e0b"
+                />
+                <StatCard
+                  label="Hit 100 views"
+                  value={`${hitGoal} / ${videos.length}`}
+                  color="#16a34a"
+                />
+                <StatCard
+                  label="Total likes"
+                  value={totalLikes.toLocaleString()}
+                  color="#ec4899"
+                />
+                <StatCard
+                  label="Total comments"
+                  value={totalComments.toLocaleString()}
+                  color="#14b8a6"
+                />
+              </div>
 
-            {active.videos.map((s) => {
-              const threshold = s.viewThreshold || VIEW_THRESHOLD;
-              const views = s.currentViews ?? 0;
-              const progress = progressPercent(views, threshold);
-              const hitGoal = views >= threshold;
-              const daysAgo = daysSince(s.uploadDate);
-              const accentColor = s.color || "#e5e7eb";
+              {/* Best + worst */}
+              {videos.length >= 2 && (
+                <div style={s.insightsRow}>
+                  <InsightCard
+                    label="🏆 Best performer"
+                    video={topVideo}
+                    color="#16a34a"
+                  />
+                  <InsightCard
+                    label="⚠️ Needs attention"
+                    video={lowVideo}
+                    color="#ef4444"
+                  />
+                </div>
+              )}
 
-              return (
-                <div key={s.id} style={s2.row}>
-                  {/* Color dot + name */}
-                  <div style={{ ...s2.cell, flex: 3 }}>
-                    <span style={{ ...s2.dot, background: accentColor }} />
-                    <div style={s2.nameCol}>
-                      <span style={s2.name}>{s.name}</span>
-                      {s.videoTitle && (
-                        <a
-                          href={`https://youtube.com/watch?v=${s.latestVideoId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={s2.videoTitle}
-                        >
-                          {s.videoTitle.length > 40
-                            ? s.videoTitle.slice(0, 40) + "…"
-                            : s.videoTitle}
-                        </a>
-                      )}
-                    </div>
-                  </div>
+              {/* Video table */}
+              <div style={s.tableWrap}>
+                <div style={s.tableHead}>
+                  <span style={{ flex: 4 }}>Video</span>
+                  <span style={{ flex: 2 }}>Uploaded</span>
+                  <span style={{ flex: 2, textAlign: "right" }}>Views</span>
+                  <span style={{ flex: 2, textAlign: "right" }}>Progress</span>
+                  <span style={{ flex: 1, textAlign: "right" }}>👍</span>
+                  <span style={{ flex: 1, textAlign: "right" }}>💬</span>
+                </div>
 
-                  {/* Days ago */}
-                  <div style={{ ...s2.cell, flex: 2 }}>
-                    <span style={s2.daysAgo}>
-                      {daysAgo === 0
-                        ? "Today"
-                        : daysAgo === 1
-                          ? "Yesterday"
-                          : `${daysAgo}d ago`}
-                    </span>
-                  </div>
-
-                  {/* Views + bar */}
-                  <div
-                    style={{
-                      ...s2.cell,
-                      flex: 2,
-                      flexDirection: "column",
-                      alignItems: "flex-end",
-                      gap: 4,
-                    }}
-                  >
-                    <span
+                {videos.map((video, idx) => {
+                  const pct = Math.min(
+                    100,
+                    Math.round((video.viewCount / VIEW_THRESHOLD) * 100),
+                  );
+                  const hitGoal = video.viewCount >= VIEW_THRESHOLD;
+                  return (
+                    <div
+                      key={video.id}
                       style={{
-                        ...s2.views,
-                        color: hitGoal ? "#16a34a" : "#111",
+                        ...s.row,
+                        background: idx % 2 === 0 ? "#fff" : "#fafafa",
                       }}
                     >
-                      {views.toLocaleString()}
-                    </span>
-                    <div style={s2.miniBarTrack}>
+                      {/* Thumbnail + title */}
+                      <div style={{ ...s.cell, flex: 4, gap: 10 }}>
+                        {video.thumbnail && (
+                          <img
+                            src={video.thumbnail}
+                            alt={video.title}
+                            style={s.thumb}
+                          />
+                        )}
+                        <div style={s.titleCol}>
+                          <a
+                            href={`https://youtube.com/watch?v=${video.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={s.videoTitle}
+                          >
+                            {video.title.length > 50
+                              ? video.title.slice(0, 50) + "…"
+                              : video.title}
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Uploaded */}
+                      <div style={{ ...s.cell, flex: 2 }}>
+                        <span style={s.daysAgo}>
+                          {daysAgoLabel(video.publishedAt)}
+                        </span>
+                      </div>
+
+                      {/* Views */}
                       <div
                         style={{
-                          ...s2.miniBarFill,
-                          width: `${progress}%`,
-                          background: hitGoal
-                            ? "#16a34a"
-                            : progress > 50
-                              ? "#f59e0b"
-                              : "#ef4444",
+                          ...s.cell,
+                          flex: 2,
+                          justifyContent: "flex-end",
                         }}
-                      />
+                      >
+                        <span
+                          style={{
+                            ...s.views,
+                            color: hitGoal ? "#16a34a" : "#111",
+                          }}
+                        >
+                          {video.viewCount.toLocaleString()}
+                        </span>
+                      </div>
+
+                      {/* Progress bar + % */}
+                      <div
+                        style={{
+                          ...s.cell,
+                          flex: 2,
+                          justifyContent: "flex-end",
+                          gap: 6,
+                        }}
+                      >
+                        <div style={s.barTrack}>
+                          <div
+                            style={{
+                              ...s.barFill,
+                              width: `${pct}%`,
+                              background: hitGoal
+                                ? "#16a34a"
+                                : pct > 50
+                                  ? "#f59e0b"
+                                  : "#ef4444",
+                            }}
+                          />
+                        </div>
+                        <span
+                          style={{
+                            ...s.pct,
+                            color: hitGoal ? "#16a34a" : "#aaa",
+                          }}
+                        >
+                          {hitGoal ? "✅" : `${pct}%`}
+                        </span>
+                      </div>
+
+                      {/* Likes */}
+                      <div
+                        style={{
+                          ...s.cell,
+                          flex: 1,
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <span style={s.stat}>
+                          {video.likeCount.toLocaleString()}
+                        </span>
+                      </div>
+
+                      {/* Comments */}
+                      <div
+                        style={{
+                          ...s.cell,
+                          flex: 1,
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <span style={s.stat}>
+                          {video.commentCount.toLocaleString()}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Goal */}
-                  <div
-                    style={{ ...s2.cell, flex: 2, justifyContent: "flex-end" }}
-                  >
-                    <span
-                      style={{
-                        ...s2.goalBadge,
-                        background: hitGoal ? "#f0fdf4" : "#fef2f2",
-                        color: hitGoal ? "#16a34a" : "#dc2626",
-                        border: `1px solid ${hitGoal ? "#bbf7d0" : "#fca5a5"}`,
-                      }}
-                    >
-                      {hitGoal ? "✅" : `${progress}%`} /{" "}
-                      {threshold.toLocaleString()}
-                    </span>
-                  </div>
-
-                  {/* Likes */}
-                  <div
-                    style={{ ...s2.cell, flex: 1, justifyContent: "flex-end" }}
-                  >
-                    <span style={s2.stat}>
-                      {(s.likeCount ?? 0).toLocaleString()}
-                    </span>
-                  </div>
-
-                  {/* Comments */}
-                  <div
-                    style={{ ...s2.cell, flex: 1, justifyContent: "flex-end" }}
-                  >
-                    <span style={s2.stat}>
-                      {(s.commentCount ?? 0).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Best + worst performer */}
-          {active.videos.length >= 2 && (
-            <div style={s.insightsRow}>
-              <Insight
-                label="🏆 Best performer"
-                series={active.videos[0]}
-                color="#16a34a"
-              />
-              <Insight
-                label="⚠️ Needs attention"
-                series={active.videos[active.videos.length - 1]}
-                color="#ef4444"
-              />
-            </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </>
       )}
@@ -270,39 +413,55 @@ export default function Analytics({ series }) {
   );
 }
 
-function StatCard({ label, value, sub, color }) {
+function StatCard({ label, value, color }) {
   return (
     <div style={sc.card}>
       <div style={{ ...sc.bar, background: color }} />
       <div style={sc.body}>
         <p style={sc.value}>{value}</p>
         <p style={sc.label}>{label}</p>
-        <p style={sc.sub}>{sub}</p>
       </div>
     </div>
   );
 }
 
-function Insight({ label, series, color }) {
-  const threshold = series.viewThreshold || VIEW_THRESHOLD;
-  const views = series.currentViews ?? 0;
+function InsightCard({ label, video, color }) {
   return (
     <div style={{ ...si.card, borderColor: color }}>
       <p style={{ ...si.label, color }}>{label}</p>
       <div style={si.row}>
-        <span style={{ ...si.dot, background: series.color || "#e5e7eb" }} />
-        <span style={si.name}>{series.name}</span>
+        {video.thumbnail && (
+          <img src={video.thumbnail} alt={video.title} style={si.thumb} />
+        )}
+        <div style={si.info}>
+          <a
+            href={`https://youtube.com/watch?v=${video.id}`}
+            target="_blank"
+            rel="noreferrer"
+            style={si.title}
+          >
+            {video.title.length > 45
+              ? video.title.slice(0, 45) + "…"
+              : video.title}
+          </a>
+          <p style={si.views}>{video.viewCount.toLocaleString()} views</p>
+        </div>
       </div>
-      <p style={si.views}>{views.toLocaleString()} views</p>
-      <p style={si.goal}>Goal: {threshold.toLocaleString()}</p>
     </div>
   );
 }
 
-// Styles
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const s = {
   page: { paddingTop: "0.25rem" },
-  tabs: { display: "flex", gap: 8, marginBottom: "1.25rem", flexWrap: "wrap" },
+  tabs: {
+    display: "flex",
+    gap: 8,
+    marginBottom: "1.25rem",
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
   tab: {
     display: "inline-flex",
     alignItems: "center",
@@ -322,12 +481,63 @@ const s = {
     borderRadius: 999,
     padding: "1px 7px",
   },
-  empty: { textAlign: "center", padding: "4rem 1rem", color: "#bbb" },
+
+  empty: { textAlign: "center", padding: "4rem 1rem" },
   emptyIcon: { fontSize: 36, marginBottom: "0.75rem" },
+  emptyText: { fontSize: 14, color: "#bbb", maxWidth: 300, margin: "0 auto" },
+
+  loadingWrap: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    padding: "4rem 1rem",
+    gap: 16,
+  },
+  spinner: { display: "flex", gap: 4, alignItems: "flex-end", height: 60 },
+  spinnerBar: {
+    width: 6,
+    borderRadius: 999,
+    background: "#FF0000",
+    animation: "bounce 0.6s ease infinite alternate",
+  },
+  loadingText: { fontSize: 13, color: "#aaa" },
+
+  errorWrap: {
+    textAlign: "center",
+    padding: "3rem 1rem",
+    background: "#fef2f2",
+    borderRadius: 12,
+    border: "1px solid #fca5a5",
+  },
+  errorTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#b91c1c",
+    marginBottom: 6,
+  },
+  errorMsg: { fontSize: 13, color: "#ef4444", marginBottom: 16 },
+  retryBtn: {
+    padding: "8px 20px",
+    borderRadius: 8,
+    border: "none",
+    background: "#ef4444",
+    color: "#fff",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: "inherit",
+  },
 
   summaryGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+    gap: 10,
+    marginBottom: "1.25rem",
+  },
+
+  insightsRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
     gap: 10,
     marginBottom: "1.25rem",
   },
@@ -337,9 +547,8 @@ const s = {
     borderRadius: 12,
     border: "1px solid #ebebeb",
     overflow: "hidden",
-    marginBottom: "1.25rem",
   },
-  tableHeader: {
+  tableHead: {
     display: "flex",
     gap: 8,
     padding: "0.6rem 1rem",
@@ -351,59 +560,43 @@ const s = {
     textTransform: "uppercase",
     letterSpacing: "0.05em",
   },
-
-  insightsRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
-};
-
-const s2 = {
   row: {
     display: "flex",
     gap: 8,
-    padding: "0.65rem 1rem",
+    padding: "0.6rem 1rem",
     borderBottom: "1px solid #f5f5f5",
     alignItems: "center",
-    transition: "background 0.1s",
   },
-  cell: { display: "flex", alignItems: "center", gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
-  nameCol: { display: "flex", flexDirection: "column", gap: 1, minWidth: 0 },
-  name: {
-    fontSize: 13,
+  cell: { display: "flex", alignItems: "center" },
+  thumb: {
+    width: 64,
+    height: 36,
+    objectFit: "cover",
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  titleCol: { display: "flex", flexDirection: "column", minWidth: 0 },
+  videoTitle: {
+    fontSize: 12,
     fontWeight: 600,
     color: "#111",
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
-  videoTitle: {
-    fontSize: 11,
-    color: "#aaa",
     textDecoration: "none",
+    lineHeight: 1.4,
     overflow: "hidden",
     whiteSpace: "nowrap",
     textOverflow: "ellipsis",
   },
   daysAgo: { fontSize: 12, color: "#888" },
   views: { fontSize: 14, fontWeight: 700 },
-  miniBarTrack: {
-    width: 60,
-    height: 3,
+  barTrack: {
+    width: 56,
+    height: 4,
     background: "#f3f4f6",
     borderRadius: 999,
     overflow: "hidden",
   },
-  miniBarFill: {
-    height: "100%",
-    borderRadius: 999,
-    transition: "width 0.5s ease",
-  },
-  goalBadge: {
-    fontSize: 11,
-    fontWeight: 600,
-    padding: "2px 8px",
-    borderRadius: 999,
-    whiteSpace: "nowrap",
-  },
+  barFill: { height: "100%", borderRadius: 999, transition: "width 0.5s ease" },
+  pct: { fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: "right" },
   stat: { fontSize: 12, color: "#888" },
 };
 
@@ -414,7 +607,6 @@ const sc = {
     borderRadius: 10,
     overflow: "hidden",
     display: "flex",
-    flexDirection: "row",
     boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
   },
   bar: { width: 4, flexShrink: 0 },
@@ -422,7 +614,7 @@ const sc = {
     padding: "0.75rem 0.9rem",
     display: "flex",
     flexDirection: "column",
-    gap: 2,
+    gap: 3,
   },
   value: {
     fontSize: 20,
@@ -434,12 +626,11 @@ const sc = {
   label: {
     fontSize: 11,
     fontWeight: 700,
-    color: "#888",
+    color: "#aaa",
     margin: 0,
     textTransform: "uppercase",
     letterSpacing: "0.04em",
   },
-  sub: { fontSize: 10, color: "#bbb", margin: 0 },
 };
 
 const si = {
@@ -450,7 +641,7 @@ const si = {
     padding: "0.85rem 1rem",
     display: "flex",
     flexDirection: "column",
-    gap: 4,
+    gap: 8,
   },
   label: {
     fontSize: 11,
@@ -459,9 +650,21 @@ const si = {
     textTransform: "uppercase",
     letterSpacing: "0.04em",
   },
-  row: { display: "flex", alignItems: "center", gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
-  name: { fontSize: 14, fontWeight: 700, color: "#111" },
-  views: { fontSize: 13, color: "#555", margin: 0 },
-  goal: { fontSize: 11, color: "#bbb", margin: 0 },
+  row: { display: "flex", alignItems: "center", gap: 10 },
+  thumb: {
+    width: 80,
+    height: 45,
+    objectFit: "cover",
+    borderRadius: 6,
+    flexShrink: 0,
+  },
+  info: { display: "flex", flexDirection: "column", gap: 3, minWidth: 0 },
+  title: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#111",
+    textDecoration: "none",
+    lineHeight: 1.4,
+  },
+  views: { fontSize: 12, color: "#888", margin: 0 },
 };
