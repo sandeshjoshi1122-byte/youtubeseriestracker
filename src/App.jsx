@@ -7,6 +7,7 @@ import SummaryBar from "./components/SummaryBar";
 import SeriesGrid from "./components/SeriesGrid";
 import Modal from "./components/Modal";
 import Analytics from "./components/Analytics";
+import Todo from "./components/Todo";
 
 export default function App() {
   const {
@@ -122,9 +123,21 @@ export default function App() {
         >
           📊 Analytics
         </button>
+        <button
+          style={{
+            ...s.mainTab,
+            borderBottom:
+              activeTab === "todo" ? "2px solid #111" : "2px solid transparent",
+            color: activeTab === "todo" ? "#111" : "#aaa",
+            fontWeight: activeTab === "todo" ? 700 : 500,
+          }}
+          onClick={() => setActiveTab("todo")}
+        >
+          ✅ Todo
+        </button>
       </div>
 
-      {activeTab === "tracker" ? (
+      {activeTab === "tracker" && (
         <>
           <SummaryBar
             series={activeSeries}
@@ -149,11 +162,15 @@ export default function App() {
             onUpdateTodo={updateTodo}
           />
         </>
-      ) : (
+      )}
+
+      {activeTab === "analytics" && (
         <Analytics
           series={series.map((s) => ({ ...s, status: analyzeStatus(s) }))}
         />
       )}
+
+      {activeTab === "todo" && <Todo />}
 
       {modal && (
         <Modal
